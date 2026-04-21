@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  /* Color tokens */
+  --color-corge-charcoal: #121212;
+  --color-corge-charcoal-800: #1a1a1a;
+  --color-corge-charcoal-700: #242424;
+  --color-corge-charcoal-600: #2e2e2e;
+  --color-corge-orange: #FF5A1F;
+  --color-corge-orange-hover: #e04e18;
+  --color-corge-orange-muted: rgba(255, 90, 31, 0.15);
+
+  /* Score category colors */
+  --color-score-diamond: #60a5fa;
+  --color-score-holder: #34d399;
+  --color-score-neutral: #a3a3a3;
+  --color-score-weak: #fbbf24;
+  --color-score-jeet: #f87171;
+
+  /* Error colors */
+  --color-error: #f87171;
+  --color-error-bg: rgba(248, 113, 113, 0.1);
+  --color-error-border: rgba(248, 113, 113, 0.3);
+
+  /* Typography */
+  --font-heading: "Unbounded", sans-serif;
+  --font-body: "Space Grotesk", sans-serif;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(12px);
+}
+
+/* Base styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-corge-charcoal);
+  color: #e5e5e5;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism card utility */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 1rem;
+}
+
+/* Orange focus ring */
+.focus-orange:focus-visible {
+  outline: 2px solid var(--color-corge-orange);
+  outline-offset: 2px;
+}
+
+/* Score glow utilities */
+.glow-diamond {
+  box-shadow: 0 0 24px rgba(96, 165, 250, 0.3);
+}
+.glow-holder {
+  box-shadow: 0 0 24px rgba(52, 211, 153, 0.3);
+}
+.glow-neutral {
+  box-shadow: 0 0 24px rgba(163, 163, 163, 0.2);
+}
+.glow-weak {
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.3);
+}
+.glow-jeet {
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.3);
+}
+
+/* Animated pulse for processing state */
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.05); }
+}
+
+.pulse-processing {
+  animation: pulse-ring 1.5s ease-in-out infinite;
+}
