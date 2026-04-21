@@ -1,5 +1,5 @@
 // src/api/client.ts
-import type { SubmitWalletResponse, JobStatusResponse, QueueStatus } from '../types';
+import type { JobStatusResponse, QueueStatus, WalletResult } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
@@ -47,8 +47,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return response.json() as Promise<T>;
 }
 
-export async function submitWallet(address: string): Promise<SubmitWalletResponse> {
-    return request<SubmitWalletResponse>('/wallet', {
+// What POST /wallet actually returns (two shapes)
+export type SubmitWalletResult =
+    | { cached: true; data: WalletResult }
+    | { cached?: false; jobId: string; status: string; position?: number };
+
+export async function submitWallet(address: string): Promise<SubmitWalletResult> {
+    return request<SubmitWalletResult>('/wallet', {
         method: 'POST',
         body: JSON.stringify({ address }),
     });

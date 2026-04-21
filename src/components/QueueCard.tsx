@@ -1,7 +1,26 @@
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { QueueCardProps } from '../types';
 
+const PROCESSING_MESSAGES = [
+    'Scanning on-chain activity...',
+    'Checking transaction history...',
+    'Calculating reputation score...',
+    'Analysing wallet behaviour...',
+    'Almost there...',
+];
+
 export default function QueueCard({ pollStatus, queuePosition, connectivityWarning }: QueueCardProps) {
+    const [msgIndex, setMsgIndex] = useState(0);
+
+    useEffect(() => {
+        if (pollStatus !== 'processing') return;
+        const id = setInterval(() => {
+            setMsgIndex(i => (i + 1) % PROCESSING_MESSAGES.length);
+        }, 2500);
+        return () => clearInterval(id);
+    }, [pollStatus]);
+
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
@@ -14,10 +33,7 @@ export default function QueueCard({ pollStatus, queuePosition, connectivityWarni
             <div className="relative flex items-center justify-center w-16 h-16">
                 <div
                     className="absolute inset-0 rounded-full"
-                    style={{
-                        border: '2px solid var(--color-corge-orange)',
-                        opacity: 0.3,
-                    }}
+                    style={{ border: '2px solid var(--color-corge-orange)', opacity: 0.3 }}
                 />
                 <motion.div
                     className="absolute inset-0 rounded-full"
@@ -50,29 +66,33 @@ export default function QueueCard({ pollStatus, queuePosition, connectivityWarni
                             #{queuePosition}
                         </motion.p>
                     </div>
-                    <p
-                        className="text-sm"
-                        style={{ color: 'rgba(242,242,242,0.6)', fontFamily: 'var(--font-body)' }}
-                    >
+                    <p className="text-sm" style={{ color: 'rgba(242,242,242,0.6)', fontFamily: 'var(--font-body)' }}>
                         Your wallet is queued for analysis
                     </p>
                 </>
             ) : (
-                <>
+                <div className="flex flex-col items-center gap-2" style={{ minHeight: '52px' }}>
                     <p
                         className="text-lg font-semibold"
                         style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-corge-offwhite, #F2F2F2)' }}
                         data-testid="processing-indicator"
                     >
-                        Analysing wallet...
+                        Analysing wallet
                     </p>
-                    <p
-                        className="text-sm"
-                        style={{ color: 'rgba(242,242,242,0.6)', fontFamily: 'var(--font-body)' }}
-                    >
-                        Crunching on-chain data
-                    </p>
-                </>
+                    <AnimatePresence mode="wait">
+                        <motion.p
+                            key={msgIndex}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.4 }}
+                            className="text-sm"
+                            style={{ color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)' }}
+                        >
+                            {PROCESSING_MESSAGES[msgIndex]}
+                        </motion.p>
+                    </AnimatePresence>
+                </div>
             )}
 
             {connectivityWarning && (

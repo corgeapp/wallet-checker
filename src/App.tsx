@@ -58,8 +58,14 @@ export default function App() {
         setState({ status: 'submitting' });
         setConnectivityWarning(false);
         try {
-            const { jobId: newJobId } = await submitWallet(address);
-            setState({ status: 'polling', jobId: newJobId, pollStatus: 'queued' });
+            const res = await submitWallet(address);
+            // Cached result — backend returned data immediately, no job needed
+            if ('cached' in res && res.cached) {
+                setState({ status: 'done', result: res.data });
+                return;
+            }
+            // Queued job — start polling
+            setState({ status: 'polling', jobId: res.jobId, pollStatus: 'queued', queuePosition: res.position });
         } catch (err) {
             const message =
                 err instanceof NetworkError
