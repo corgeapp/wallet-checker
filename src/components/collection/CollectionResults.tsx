@@ -1,0 +1,275 @@
+import { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import type { CollectionWalletResult, CollectionStats } from '../../types';
+import { classifyScore, SCORE_CATEGORY_STYLES } from '../../utils/score';
+
+interface Props {
+    results: CollectionWalletResult[];
+    stats: CollectionStats;
+    collectionName: string;
+    onReset: () => void;
+}
+
+type SortKey = 'wallet_score' | 'flip_count' | 'confidence' | 'label';
+type SortDir = 'asc' | 'desc';
+
+function exportCSV(results: CollectionWalletResult[], name: string) {
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence';
+    const rows = results.map(r =>
+        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence}`
+    );
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name || 'collection'}_scores.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+export default function CollectionResults({ results, stats, collectionName, onReset }: Props) {
+    const [sortKey, setSortKey] = useState<SortKey>('wallet_score');
+    const [sortDir, setSortDir] = useState<SortDir>('desc');
+    const [labelFilter, setLabelFilter] = useState<string>('all');
+    const [page, setPage] = useState(0);
+    const PAGE_SIZE = 50;
+
+    const labels = useMemo(() => {
+        const s = new Set(results.map(r => r.label));
+        return ['all', ...Array.from(s).sort()];
+    }, [results]);
+
+    const sorted = useMemo(() => {
+        let filtered = labelFilter === 'all' ? results : results.filter(r => r.label === labelFilter);
+        return [...filtered].sort((a, b) => {
+            const av = a[sortKey] as number | string;
+            const bv = b[sortKey] as number | string;
+            if (typeof av === 'number' && typeof bv === 'number') {
+                return sortDir === 'desc' ? bv - av : av - bv;
+            }
+            return sortDir === 'desc'
+                ? String(bv).localeCompare(String(av))
+                : String(av).localeCompare(String(bv));
+        });
+    }, [results, sortKey, sortDir, labelFilter]);
+
+    const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+
+    function toggleSort(key: SortKey) {
+        if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+        else { setSortKey(key); setSortDir('desc'); }
+        setPage(0);
+    }
+
+    const SortIcon = ({ k }: { k: SortKey }) => (
+        <span style={{ opacity: sortKey === k ? 1 : 0.3 }}>
+            {sortKey === k ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕'}
+        </span>
+    );
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="w-full flex flex-col gap-5"
+        >
+            {/* Summary stats */}
+            <div className="glass-card p-6 md:p-8">
+                <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                    <h2
+                        className="text-lg font-bold"
+                        style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-corge-offwhite)' }}
+                    >
+                        {collectionName || 'Collection'} — Results
+                    </h2>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => exportCSV(results, collectionName)}
+                            className="text-xs px-3 py-2 rounded-lg transition-all"
+                            style={{
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid var(--glass-border)',
+                                color: 'rgba(242,242,242,0.7)',
+                                fontFamily: 'var(--font-body)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            ↓ Export CSV
+                        </button>
+                        <button
+                            onClick={onReset}
+                            className="text-xs px-3 py-2 rounded-lg transition-all"
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid var(--glass-border)',
+                                color: 'rgba(242,242,242,0.5)',
+                                fontFamily: 'var(--font-body)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            New scan
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                    {[
+                        { label: 'Wallets scored', value: stats.total.toLocaleString(), color: 'var(--color-corge-orange)' },
+                        { label: 'Avg score', value: stats.avg_score.toFixed(2), color: 'var(--color-corge-offwhite)' },
+                        { label: 'Sweepers', value: stats.sweepers.toLocaleString(), color: '#f87171' },
+                        { label: 'New wallets', value: stats.new_wallets.toLocaleString(), color: '#a3a3a3' },
+                    ].map(({ label, value, color }) => (
+                        <div key={label} className="rounded-xl px-3 py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+                            <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>{label}</p>
+                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--font-heading)', color }}>{value}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Score distribution */}
+                <div>
+                    <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Score distribution</p>
+                    <div className="flex gap-1 items-end h-16">
+                        {Object.entries(stats.score_distribution).map(([range, count]) => {
+                            const max = Math.max(...Object.values(stats.score_distribution));
+                            const h = max > 0 ? (count / max) * 100 : 0;
+                            return (
+                                <div key={range} className="flex-1 flex flex-col items-center gap-1">
+                                    <motion.div
+                                        className="w-full rounded-t"
+                                        style={{ background: 'var(--color-corge-orange)', opacity: 0.7 }}
+                                        initial={{ height: 0 }}
+                                        animate={{ height: `${h}%` }}
+                                        transition={{ duration: 0.6, delay: 0.1 }}
+                                    />
+                                    <span className="text-xs" style={{ color: 'rgba(242,242,242,0.3)', fontFamily: 'var(--font-body)', fontSize: '10px' }}>{range}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Results table */}
+            <div className="glass-card p-4 md:p-6">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-body)', color: 'rgba(242,242,242,0.7)' }}>
+                        {sorted.length.toLocaleString()} wallets
+                    </p>
+                    {/* Label filter */}
+                    <div className="flex gap-1.5 flex-wrap">
+                        {labels.map(l => (
+                            <button
+                                key={l}
+                                onClick={() => { setLabelFilter(l); setPage(0); }}
+                                className="text-xs px-2.5 py-1 rounded-full transition-all"
+                                style={{
+                                    background: labelFilter === l ? 'var(--color-corge-orange)' : 'rgba(255,255,255,0.06)',
+                                    color: labelFilter === l ? '#fff' : 'rgba(242,242,242,0.5)',
+                                    border: '1px solid transparent',
+                                    fontFamily: 'var(--font-body)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {l}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto scrollbar-corge">
+                    <table className="w-full text-xs" style={{ fontFamily: 'var(--font-body)', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                                <th className="text-left py-2 px-2" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }}>Wallet</th>
+                                <th className="text-right py-2 px-2 cursor-pointer select-none" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('wallet_score')}>
+                                    Score <SortIcon k="wallet_score" />
+                                </th>
+                                <th className="text-left py-2 px-2 cursor-pointer select-none" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('label')}>
+                                    Label <SortIcon k="label" />
+                                </th>
+                                <th className="text-right py-2 px-2 cursor-pointer select-none hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('flip_count')}>
+                                    Flips <SortIcon k="flip_count" />
+                                </th>
+                                <th className="text-center py-2 px-2 hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }}>Sweeper</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginated.map((r, i) => {
+                                const cat = classifyScore(r.wallet_score);
+                                const style = SCORE_CATEGORY_STYLES[cat];
+                                return (
+                                    <tr
+                                        key={r.wallet}
+                                        style={{
+                                            borderBottom: '1px solid rgba(255,255,255,0.04)',
+                                            background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                                        }}
+                                    >
+                                        <td className="py-2 px-2" style={{ color: 'rgba(242,242,242,0.5)', fontFamily: 'monospace' }}>
+                                            {r.wallet.slice(0, 6)}...{r.wallet.slice(-4)}
+                                        </td>
+                                        <td className="py-2 px-2 text-right font-bold" style={{ color: style.colorClass.replace('text-[', '').replace(']', '') }}>
+                                            {r.wallet_score.toFixed(1)}
+                                        </td>
+                                        <td className="py-2 px-2">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs ${style.badgeClass}`}>
+                                                {r.label}
+                                            </span>
+                                        </td>
+                                        <td className="py-2 px-2 text-right hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.5)' }}>
+                                            {r.flip_count}
+                                        </td>
+                                        <td className="py-2 px-2 text-center hidden md:table-cell">
+                                            {r.is_sweeper ? <span style={{ color: '#f87171' }}>🧹</span> : <span style={{ color: '#34d399' }}>—</span>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                        <button
+                            onClick={() => setPage(p => Math.max(0, p - 1))}
+                            disabled={page === 0}
+                            className="text-xs px-3 py-1.5 rounded-lg"
+                            style={{
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid var(--glass-border)',
+                                color: page === 0 ? 'rgba(242,242,242,0.2)' : 'rgba(242,242,242,0.6)',
+                                cursor: page === 0 ? 'not-allowed' : 'pointer',
+                                fontFamily: 'var(--font-body)',
+                            }}
+                        >
+                            ← Prev
+                        </button>
+                        <span className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
+                            {page + 1} / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                            disabled={page >= totalPages - 1}
+                            className="text-xs px-3 py-1.5 rounded-lg"
+                            style={{
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid var(--glass-border)',
+                                color: page >= totalPages - 1 ? 'rgba(242,242,242,0.2)' : 'rgba(242,242,242,0.6)',
+                                cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                                fontFamily: 'var(--font-body)',
+                            }}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}

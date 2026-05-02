@@ -66,3 +66,87 @@ export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
 export async function getQueueStatus(): Promise<QueueStatus> {
     return request<QueueStatus>('/queue/status');
 }
+
+// ─── Collection API ───────────────────────────────────────────────────────────
+
+import type { CollectionScanResponse, CollectionSessionResponse } from '../types';
+
+// Flexible body — accepts any of the formats the backend supports:
+// - { addresses: string[] }
+// - { addresses: MinterResult[] }
+// - Full MintersResponse (spread with optional collectionName)
+// - Any object with results/data/wallets/holders key
+export async function startCollectionScan(
+    body: Record<string, unknown>,
+    collectionName?: string
+): Promise<CollectionScanResponse> {
+    const payload = collectionName ? { ...body, collectionName } : body;
+    return request<CollectionScanResponse>('/collection/scan', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function startCollectionScanCSV(
+    file: File,
+    collectionName?: string
+): Promise<CollectionScanResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (collectionName) formData.append('collectionName', collectionName);
+
+    let response: Response;
+    try {
+        response = await fetch(`${BASE_URL}/collection/scan/csv`, {
+            method: 'POST',
+            body: formData,
+            // No Content-Type header — browser sets it with boundary automatically
+        });
+    } catch (err) {
+        throw new NetworkError(err instanceof Error ? err.message : 'Network request failed');
+    }
+
+    if (!response.ok) {
+        let message = `Request failed with status ${response.status}`;
+        try {
+            const body = await response.json() as { message?: string; error?: string };
+            message = body.message ?? body.error ?? message;
+        } catch { /* ignore */ }
+        throw new ApiError(response.status, message, response.status >= 500);
+    }
+
+    return response.json() as Promise<CollectionScanResponse>;
+}
+
+export async function getCollectionSession(sessionId: string): Promise<CollectionSessionResponse> {
+    return request<CollectionSessionResponse>(`/collection/session/${sessionId}`);
+}
+
+// ─── Minters API ──────────────────────────────────────────────────────────────
+
+import type { MintersResponse, MintersFields } from '../types';
+
+export async function getMinters(
+    contract: string,
+    chain: number,
+    fields: MintersFields
+): Promise<MintersResponse> {
+    const params = new URLSearchParams({
+        contract,
+        chain: String(chain),
+        fields,
+        format: 'json',
+    });
+    return request<MintersResponse>(`/collection/minters?${params.toString()}`);
+}
+
+// Returns the direct URL for CSV download (browser handles it natively)
+export function getMintersCSVUrl(contract: string, chain: number, fields: MintersFields): string {
+    const params = new URLSearchParams({
+        contract,
+        chain: String(chain),
+        fields,
+        format: 'csv',
+    });
+    return `${BASE_URL}/collection/minters?${params.toString()}`;
+}

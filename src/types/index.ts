@@ -66,3 +66,110 @@ export interface QueueStatusBannerProps {
     queueDepth: number;
     activeJobs: number;
 }
+
+// ─── Collection Scanner Types ─────────────────────────────────────────────────
+
+export interface CollectionWalletResult {
+    wallet: string;
+    wallet_score: number;
+    label: string;
+    is_sweeper: boolean;
+    flip_count: number;
+    confidence: number;
+}
+
+export interface CollectionProgress {
+    total: number;
+    completed: number;
+    failed: number;
+    remaining: number;
+    percent: number;
+}
+
+export interface CollectionStats {
+    total: number;
+    avg_score: number;
+    median_score: number;
+    min_score: number;
+    max_score: number;
+    sweepers: number;
+    new_wallets: number;
+    zero_flip_wallets: number;
+    label_distribution: Record<string, number>;
+    score_distribution: Record<string, number>;
+}
+
+export interface CollectionStalled {
+    message: string;
+    stalledAt: number;
+    resultsCollected: number;
+}
+
+export type CollectionStatus = 'running' | 'done' | 'stalled';
+
+export interface CollectionSessionResponse {
+    sessionId: string;
+    collectionName?: string;
+    status: CollectionStatus;
+    progress: CollectionProgress;
+    stalled: CollectionStalled | null;
+    stats: CollectionStats;
+    results: CollectionWalletResult[];
+}
+
+export interface CollectionScanResponse {
+    success: boolean;
+    sessionId: string;
+    total: number;
+    invalid: number;
+    message: string;
+}
+
+export interface CollectionScanState {
+    phase: 'idle' | 'uploading' | 'scanning' | 'done' | 'stalled' | 'error';
+    sessionId: string | null;
+    collectionName: string;
+    progress: CollectionProgress | null;
+    stats: CollectionStats | null;
+    results: CollectionWalletResult[];
+    stalled: CollectionStalled | null;
+    error: string | null;
+    totalSubmitted: number;
+    invalidCount: number;
+}
+
+// ─── Minters Types ────────────────────────────────────────────────────────────
+
+export interface MinterResult {
+    address: string;
+    mint_count?: number;
+}
+
+export interface MintersResponse {
+    success: boolean;
+    contract: string;
+    chain_id: number;
+    total_minters: number;
+    total_mints: number;
+    results: MinterResult[];
+}
+
+export type MintersFields = 'address' | 'full';
+
+export interface MintersState {
+    phase: 'idle' | 'loading' | 'done' | 'error';
+    contract: string;
+    chain: number;
+    fields: MintersFields;
+    data: MintersResponse | null;
+    error: string | null;
+}
+
+export const SUPPORTED_CHAINS: { id: number; name: string }[] = [
+    { id: 1, name: 'Ethereum' },
+    { id: 137, name: 'Polygon' },
+    { id: 8453, name: 'Base' },
+    { id: 42161, name: 'Arbitrum' },
+    { id: 10, name: 'Optimism' },
+    { id: 56, name: 'BNB Chain' },
+];
