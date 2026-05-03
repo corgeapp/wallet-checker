@@ -108,7 +108,7 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
         const firstLine = lines[0].toLowerCase();
         const hasHeader = firstLine.includes('wallet') || firstLine.includes('address');
         // Count lines that are not the header and not empty
-        return lines.filter((l, i) => !(i === 0 && hasHeader)).length;
+        return lines.filter((_l, i) => !(i === 0 && hasHeader)).length;
     })();
     const invalid = Math.max(0, dataLines - valid.length);
 
