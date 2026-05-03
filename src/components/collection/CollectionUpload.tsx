@@ -100,19 +100,17 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
     const fileRef = useRef<HTMLInputElement>(null);
     const partialRef = useRef<HTMLInputElement>(null);
 
-    // Derived counts for paste mode
-    // parseAddresses returns only valid wallet addresses; compute invalid count separately
+    // Derived counts for paste mode — parse once, count valid vs non-address lines
     const valid = parseAddresses(text);
-    const totalTokens = text.trim().length === 0 ? 0 : text
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .filter((l, i) => {
-            if (l.length === 0) return false;
-            // skip header row
-            if (i === 0 && (l.toLowerCase().includes('wallet') || l.toLowerCase().includes('address'))) return false;
-            return true;
-        }).length;
-    const invalid = Math.max(0, totalTokens - valid.length);
+    const dataLines = text.trim().length === 0 ? 0 : (() => {
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length === 0) return 0;
+        const firstLine = lines[0].toLowerCase();
+        const hasHeader = firstLine.includes('wallet') || firstLine.includes('address');
+        // Count lines that are not the header and not empty
+        return lines.filter((l, i) => !(i === 0 && hasHeader)).length;
+    })();
+    const invalid = Math.max(0, dataLines - valid.length);
 
     function handleFileSelected(file: File) {
         setPendingFile(file);
