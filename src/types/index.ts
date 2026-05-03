@@ -76,6 +76,7 @@ export interface CollectionWalletResult {
     is_sweeper: boolean;
     flip_count: number;
     confidence: number;
+    is_new_wallet?: boolean;
 }
 
 export interface CollectionProgress {

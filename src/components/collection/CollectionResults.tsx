@@ -31,16 +31,26 @@ export default function CollectionResults({ results, stats, collectionName, onRe
     const [sortKey, setSortKey] = useState<SortKey>('wallet_score');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const [labelFilter, setLabelFilter] = useState<string>('all');
+    const [newWalletOnly, setNewWalletOnly] = useState(false);
     const [page, setPage] = useState(0);
     const PAGE_SIZE = 50;
 
+    const newWalletCount = useMemo(() =>
+        results.filter(r => r.is_new_wallet).length,
+        [results]);
+
     const labels = useMemo(() => {
-        const s = new Set(results.map(r => r.label));
+        const s = new Set(
+            results
+                .map(r => r.label)
+                .filter(l => l !== 'New Wallet')
+        );
         return ['all', ...Array.from(s).sort()];
     }, [results]);
 
     const sorted = useMemo(() => {
         let filtered = labelFilter === 'all' ? results : results.filter(r => r.label === labelFilter);
+        if (newWalletOnly) filtered = filtered.filter(r => r.is_new_wallet);
         return [...filtered].sort((a, b) => {
             const av = a[sortKey] as number | string;
             const bv = b[sortKey] as number | string;
@@ -51,7 +61,7 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                 ? String(bv).localeCompare(String(av))
                 : String(av).localeCompare(String(bv));
         });
-    }, [results, sortKey, sortDir, labelFilter]);
+    }, [results, sortKey, sortDir, labelFilter, newWalletOnly]);
 
     const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -159,8 +169,33 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                     <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-body)', color: 'rgba(242,242,242,0.7)' }}>
                         {sorted.length.toLocaleString()} wallets
                     </p>
-                    {/* Label filter */}
-                    <div className="flex gap-1.5 flex-wrap">
+                    <div className="flex gap-1.5 flex-wrap items-center">
+                        {/* New Wallet toggle */}
+                        {newWalletCount > 0 && (
+                            <button
+                                onClick={() => { setNewWalletOnly(v => !v); setPage(0); }}
+                                className="text-xs px-2.5 py-1 rounded-full transition-all flex items-center gap-1"
+                                style={{
+                                    background: newWalletOnly ? 'rgba(107,114,128,0.5)' : 'rgba(107,114,128,0.12)',
+                                    color: newWalletOnly ? '#e5e7eb' : '#9ca3af',
+                                    border: `1px solid ${newWalletOnly ? 'rgba(156,163,175,0.5)' : 'rgba(107,114,128,0.25)'}`,
+                                    fontFamily: 'var(--font-body)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                🆕 New Wallet
+                                <span
+                                    className="px-1 rounded"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.1)',
+                                        fontSize: '10px',
+                                    }}
+                                >
+                                    {newWalletCount}
+                                </span>
+                            </button>
+                        )}
+                        {/* Label filter pills */}
                         {labels.map(l => (
                             <button
                                 key={l}
@@ -216,9 +251,26 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                                             {r.wallet_score.toFixed(1)}
                                         </td>
                                         <td className="py-2 px-2">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs ${style.badgeClass}`}>
-                                                {r.label}
-                                            </span>
+                                            {r.label === 'New Wallet' ? (
+                                                <span
+                                                    className="px-2 py-0.5 rounded text-xs"
+                                                    style={{
+                                                        background: 'rgba(107,114,128,0.15)',
+                                                        color: '#9ca3af',
+                                                        border: '1px solid rgba(107,114,128,0.25)',
+                                                        fontFamily: 'var(--font-body)',
+                                                    }}
+                                                >
+                                                    🆕 New Wallet
+                                                </span>
+                                            ) : (
+                                                <span className={`px-2 py-0.5 rounded-full text-xs ${style.badgeClass}`}>
+                                                    {r.label}
+                                                    {r.is_new_wallet && (
+                                                        <span className="ml-1 opacity-70">🆕</span>
+                                                    )}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="py-2 px-2 text-right hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.5)' }}>
                                             {r.flip_count}

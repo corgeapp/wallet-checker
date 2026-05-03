@@ -13,7 +13,6 @@ const LABEL_COLORS: Record<string, string> = {
     'Flipper': '#fbbf24',
     'Paper Hands': '#fbbf24',
     'Jeet': '#f87171',
-    'New Wallet': '#6b7280',
 };
 
 export default function CollectionProgress({ state }: Props) {
@@ -140,6 +139,7 @@ export default function CollectionProgress({ state }: Props) {
                     </p>
                     <div className="flex flex-col gap-2">
                         {Object.entries(stats.label_distribution)
+                            .filter(([label]) => label !== 'New Wallet')
                             .sort(([, a], [, b]) => b - a)
                             .map(([label, count]) => {
                                 const pctBar = stats.total > 0 ? (count / stats.total) * 100 : 0;

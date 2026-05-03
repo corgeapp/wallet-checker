@@ -18,6 +18,7 @@ import CollectionProgress from './components/collection/CollectionProgress';
 import CollectionResults from './components/collection/CollectionResults';
 import MinterFetcher from './components/minters/MinterFetcher';
 import MintersResults from './components/minters/MintersResults';
+import ScanHistory from './components/history/ScanHistory';
 import type { AppState, JobStatusResponse, MintersResponse, MintersFields } from './types';
 
 const QUEUE_STATUS_ENABLED = import.meta.env.VITE_QUEUE_STATUS_ENABLED === 'true';
@@ -322,6 +323,13 @@ export default function App() {
                                             />
                                         )}
                                     </AnimatePresence>
+                                </div>
+                            )}
+
+                            {/* ── Scan History ── */}
+                            {tab === 'history' && (
+                                <div key="history-tab" className="w-full">
+                                    <ScanHistory />
                                 </div>
                             )}
 
