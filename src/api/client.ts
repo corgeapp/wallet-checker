@@ -179,3 +179,18 @@ export function getMintersCSVUrl(contract: string, chain: number, fields: Minter
     });
     return `${BASE_URL}/collection/minters?${params.toString()}`;
 }
+
+// ─── First TX API ─────────────────────────────────────────────────────────────
+
+import type { FirstTxScanResponse, FirstTxSessionResponse } from '../types';
+
+export async function startFirstTxScan(addresses: string[]): Promise<FirstTxScanResponse> {
+    return request<FirstTxScanResponse>('/wallets/first-tx', {
+        method: 'POST',
+        body: JSON.stringify({ addresses }),
+    });
+}
+
+export async function getFirstTxSession(sessionId: string): Promise<FirstTxSessionResponse> {
+    return request<FirstTxSessionResponse>(`/wallets/first-tx/${sessionId}`);
+}

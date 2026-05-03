@@ -175,3 +175,30 @@ export const SUPPORTED_CHAINS: { id: number; name: string }[] = [
     { id: 10, name: 'Optimism' },
     { id: 56, name: 'BNB Chain' },
 ];
+
+// ─── First TX Types ───────────────────────────────────────────────────────────
+
+export interface FirstTxResult {
+    address: string;
+    first_tx_date: string | null;  // ISO date string or null if not found
+}
+
+export interface FirstTxSessionResponse {
+    sessionId: string;
+    status: 'running' | 'done';
+    progress: {
+        completed: number;
+        total: number;
+        percent: number;
+    };
+    results: FirstTxResult[];
+}
+
+export interface FirstTxScanResponse {
+    sessionId: string;
+    total: number;
+}
+
+export interface CollectionWalletResultWithFirstTx extends CollectionWalletResult {
+    first_tx_date?: string | null;
+}
