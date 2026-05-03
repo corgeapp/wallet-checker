@@ -33,15 +33,18 @@ export function useFirstTxScan() {
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     }
 
+    const pollCountRef = useRef(0);
+
     const poll = useCallback(async (sessionId: string) => {
         try {
             const data = await getFirstTxSession(sessionId);
+            pollCountRef.current++;
 
             setState(prev => {
                 // Merge results — accumulate as they arrive
                 const map = new Map<string, FirstTxResult>();
-                for (const r of prev.results) if (r?.address) map.set(r.address.toLowerCase(), r);
-                for (const r of data.results) if (r?.address) map.set(r.address.toLowerCase(), r);
+                for (const r of prev.results) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
+                for (const r of data.results) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
                 return {
                     ...prev,
                     completed: data.progress.completed,
@@ -52,7 +55,10 @@ export function useFirstTxScan() {
                 };
             });
 
-            if (data.status === 'done') stopPolling();
+            // Only stop if done AND we've polled at least twice (avoids premature stop on race)
+            if (data.status === 'done' && pollCountRef.current >= 2) {
+                stopPolling();
+            }
         } catch (err) {
             if (err instanceof NetworkError) return; // transient, keep polling
             stopPolling();
@@ -66,11 +72,12 @@ export function useFirstTxScan() {
 
     async function startScan(addresses: string[]) {
         stopPolling();
+        pollCountRef.current = 0;
         setState({ ...INITIAL, phase: 'scanning', total: addresses.length });
         try {
             const res = await startFirstTxScan(addresses);
             setState(prev => ({ ...prev, total: res.total }));
-            await poll(res.sessionId);
+            // Wait one interval before first poll — gives backend time to start processing
             intervalRef.current = setInterval(() => poll(res.sessionId), POLL_INTERVAL_MS);
         } catch (err) {
             setState(prev => ({

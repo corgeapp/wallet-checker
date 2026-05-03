@@ -180,8 +180,10 @@ export const SUPPORTED_CHAINS: { id: number; name: string }[] = [
 // ─── First TX Types ───────────────────────────────────────────────────────────
 
 export interface FirstTxResult {
-    address: string;
-    first_tx_date: string | null;  // ISO date string or null if not found
+    wallet: string;
+    first_tx_date: string | null;
+    first_tx_hash: string | null;
+    first_tx_block: number | null;
 }
 
 export interface FirstTxSessionResponse {

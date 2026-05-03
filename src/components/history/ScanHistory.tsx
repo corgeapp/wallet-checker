@@ -258,7 +258,7 @@ function FirstTxPage({ jeetZeroAddresses, onAppend, onBack }: FirstTxPageProps) 
 
     function handleAppend() {
         const map = new Map<string, string | null>();
-        for (const r of state.results) map.set(r.address.toLowerCase(), r.first_tx_date);
+        for (const r of state.results) if (r?.wallet) map.set(r.wallet.toLowerCase(), r.first_tx_date);
         onAppend(map);
         setAppended(true);
     }
