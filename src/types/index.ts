@@ -77,6 +77,7 @@ export interface CollectionWalletResult {
     flip_count: number;
     confidence: number;
     is_new_wallet?: boolean;
+    first_tx_date?: string | null;
 }
 
 export interface CollectionProgress {

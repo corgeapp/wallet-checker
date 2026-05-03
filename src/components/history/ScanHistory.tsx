@@ -101,10 +101,9 @@ function mergeResults(base: CollectionWalletResult[], updates: CollectionWalletR
 
 function exportCSV(results: CollectionWalletResult[], name: string) {
     const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,is_new_wallet,first_tx_date';
-    const rows = results.map(r => {
-        const r2 = r as CollectionWalletResult & { first_tx_date?: string | null };
-        return `${r2.wallet},${r2.wallet_score.toFixed(2)},${r2.label},${r2.is_sweeper},${r2.flip_count},${r2.confidence},${r2.is_new_wallet ?? false},${r2.first_tx_date ?? ''}`;
-    });
+    const rows = results.map(r =>
+        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''}`
+    );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -429,10 +428,15 @@ export default function ScanHistory() {
 
     function handleAppendFirstTx(map: Map<string, string | null>) {
         if (!scan) return;
-        const updated = scan.results.map(r => ({
-            ...r,
-            first_tx_date: map.get(r.wallet.toLowerCase()) ?? null,
-        }));
+        const updated = scan.results.map(r => {
+            const key = r.wallet?.toLowerCase();
+            const fetched = key ? map.get(key) : undefined;
+            return {
+                ...r,
+                // Only overwrite if the map has an entry for this wallet
+                first_tx_date: fetched !== undefined ? fetched : (r.first_tx_date ?? null),
+            };
+        });
         setScan(prev => prev ? { ...prev, results: updated, stats: computeStats(updated) } : null);
     }
 
