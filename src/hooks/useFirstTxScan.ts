@@ -40,8 +40,8 @@ export function useFirstTxScan() {
             setState(prev => {
                 // Merge results — accumulate as they arrive
                 const map = new Map<string, FirstTxResult>();
-                for (const r of prev.results) map.set(r.address.toLowerCase(), r);
-                for (const r of data.results) map.set(r.address.toLowerCase(), r);
+                for (const r of prev.results) if (r?.address) map.set(r.address.toLowerCase(), r);
+                for (const r of data.results) if (r?.address) map.set(r.address.toLowerCase(), r);
                 return {
                     ...prev,
                     completed: data.progress.completed,

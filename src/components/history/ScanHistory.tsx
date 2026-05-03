@@ -32,7 +32,7 @@ function parseCollectionCSV(raw: string): { results: CollectionWalletResult[]; e
     for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
         const wallet = cols[iWallet] ?? '';
-        if (!WALLET_REGEX.test(wallet)) {
+        if (!wallet || !WALLET_REGEX.test(wallet)) {
             if (wallet.length > 0) errors.push(`Row ${i + 1}: invalid address "${wallet.slice(0, 12)}..."`);
             continue;
         }
@@ -94,8 +94,8 @@ function computeStats(results: CollectionWalletResult[]): CollectionStats {
 
 function mergeResults(base: CollectionWalletResult[], updates: CollectionWalletResult[]): CollectionWalletResult[] {
     const map = new Map<string, CollectionWalletResult>();
-    for (const r of base) map.set(r.wallet.toLowerCase(), r);
-    for (const r of updates) map.set(r.wallet.toLowerCase(), r);
+    for (const r of base) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
+    for (const r of updates) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
     return Array.from(map.values());
 }
 

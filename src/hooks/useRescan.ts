@@ -42,8 +42,8 @@ export function useRescan() {
             // Accumulate results as they arrive
             setState(prev => {
                 const map = new Map<string, CollectionWalletResult>();
-                for (const r of prev.newResults) map.set(r.wallet.toLowerCase(), r);
-                for (const r of data.results) map.set(r.wallet.toLowerCase(), r);
+                for (const r of prev.newResults) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
+                for (const r of data.results) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
                 return {
                     ...prev,
                     completed: data.progress.completed,
