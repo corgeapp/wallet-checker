@@ -142,23 +142,34 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                 {/* Score distribution */}
                 <div>
                     <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Score distribution</p>
-                    <div className="flex gap-1 items-end h-16">
+                    <div className="flex gap-1 items-end" style={{ height: '64px' }}>
                         {Object.entries(stats.score_distribution).map(([range, count]) => {
                             const max = Math.max(...Object.values(stats.score_distribution));
-                            const h = max > 0 ? (count / max) * 100 : 0;
+                            const heightPx = max > 0 ? Math.max(2, Math.round((count / max) * 52)) : 0;
                             return (
-                                <div key={range} className="flex-1 flex flex-col items-center gap-1">
+                                <div key={range} className="flex-1 flex flex-col items-center justify-end gap-1" style={{ height: '64px' }}>
                                     <motion.div
                                         className="w-full rounded-t"
-                                        style={{ background: 'var(--color-corge-orange)', opacity: 0.7 }}
+                                        style={{ background: 'var(--color-corge-orange)', opacity: 0.75 }}
                                         initial={{ height: 0 }}
-                                        animate={{ height: `${h}%` }}
+                                        animate={{ height: `${heightPx}px` }}
                                         transition={{ duration: 0.6, delay: 0.1 }}
+                                        title={`${range}: ${count.toLocaleString()}`}
                                     />
-                                    <span className="text-xs" style={{ color: 'rgba(242,242,242,0.3)', fontFamily: 'var(--font-body)', fontSize: '10px' }}>{range}</span>
+                                    <span style={{ color: 'rgba(242,242,242,0.3)', fontFamily: 'var(--font-body)', fontSize: '10px', lineHeight: 1 }}>{range}</span>
                                 </div>
                             );
                         })}
+                    </div>
+                    {/* Count labels */}
+                    <div className="flex gap-1 mt-1">
+                        {Object.entries(stats.score_distribution).map(([range, count]) => (
+                            <div key={range} className="flex-1 text-center">
+                                <span style={{ color: 'rgba(242,242,242,0.25)', fontFamily: 'var(--font-body)', fontSize: '9px' }}>
+                                    {count > 0 ? count.toLocaleString() : ''}
+                                </span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
