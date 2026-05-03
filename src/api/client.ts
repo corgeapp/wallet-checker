@@ -122,6 +122,35 @@ export async function getCollectionSession(sessionId: string): Promise<Collectio
     return request<CollectionSessionResponse>(`/collection/session/${sessionId}`);
 }
 
+/**
+ * Cancel an active collection session.
+ * Uses `keepalive: true` so the request survives page unload.
+ * Falls back to `navigator.sendBeacon` when called from a beforeunload handler.
+ */
+export async function cancelCollectionSession(sessionId: string): Promise<void> {
+    try {
+        await fetch(`${BASE_URL}/collection/session/${sessionId}`, {
+            method: 'DELETE',
+            keepalive: true,
+        });
+    } catch {
+        // Best-effort — ignore errors (page may be unloading)
+    }
+}
+
+/**
+ * Fire-and-forget cancel via sendBeacon (safe to call from beforeunload).
+ * sendBeacon only supports POST, so we send a JSON body with `_method: "DELETE"`.
+ */
+export function cancelCollectionSessionBeacon(sessionId: string): void {
+    const url = `${BASE_URL}/collection/session/${sessionId}`;
+    const sent = navigator.sendBeacon(url, JSON.stringify({ _method: 'DELETE' }));
+    if (!sent) {
+        // sendBeacon failed (e.g. data too large) — fall back to keepalive fetch
+        fetch(url, { method: 'DELETE', keepalive: true }).catch(() => undefined);
+    }
+}
+
 // ─── Minters API ──────────────────────────────────────────────────────────────
 
 import type { MintersResponse, MintersFields } from '../types';

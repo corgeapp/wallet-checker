@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { submitWallet, getMinters } from './api/client';
+import { submitWallet, getMinters, cancelCollectionSessionBeacon } from './api/client';
 import { NetworkError } from './api/client';
 import { usePoller } from './hooks/usePoller';
 import { useQueueStatus } from './hooks/useQueueStatus';
@@ -134,14 +134,16 @@ export default function App() {
     // ── Refresh guard while scan is running ───────────────────────────────────
     useEffect(() => {
         function onBeforeUnload(e: BeforeUnloadEvent) {
-            if (scanActive) {
+            if (scanActive && scanState.sessionId) {
+                // Cancel the session server-side before the page closes
+                cancelCollectionSessionBeacon(scanState.sessionId);
                 e.preventDefault();
-                e.returnValue = 'A collection scan is in progress. Results are saved locally — you can resume after reload. Leave anyway?';
+                e.returnValue = '';
             }
         }
         window.addEventListener('beforeunload', onBeforeUnload);
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
-    }, [scanActive]);
+    }, [scanActive, scanState.sessionId]);
 
     return (
         <div
@@ -186,7 +188,7 @@ export default function App() {
                             {tab === 'collection' && (
                                 <div key="collection-tab" className="w-full flex flex-col gap-5">
                                     <AnimatePresence mode="wait">
-                                        {(scanState.phase === 'idle' || scanState.phase === 'error' || scanState.phase === 'uploading') && (
+                                        {(scanState.phase === 'idle' || scanState.phase === 'error' || scanState.phase === 'cancelled' || scanState.phase === 'uploading') && (
                                             <div key="upload">
                                                 <CollectionUpload
                                                     onStartFromFile={startScanFromFile}
@@ -196,6 +198,11 @@ export default function App() {
                                                 {scanState.phase === 'error' && scanState.error && (
                                                     <div className="mt-3">
                                                         <ErrorDisplay message={scanState.error} recoverable={true} onRetry={resetScan} onDismiss={resetScan} />
+                                                    </div>
+                                                )}
+                                                {scanState.phase === 'cancelled' && scanState.error && (
+                                                    <div className="mt-3">
+                                                        <ErrorDisplay message={`Session cancelled: ${scanState.error}`} recoverable={false} onDismiss={resetScan} />
                                                     </div>
                                                 )}
                                             </div>
@@ -212,6 +219,79 @@ export default function App() {
                                                     collectionName={scanState.collectionName}
                                                     onReset={resetScan}
                                                 />
+                                            </div>
+                                        )}
+                                        {scanState.phase === 'interrupted' && scanState.results.length > 0 && (
+                                            <div key="interrupted" className="w-full flex flex-col gap-5">
+                                                {/* Partial results banner */}
+                                                <div
+                                                    className="rounded-xl px-4 py-3"
+                                                    style={{
+                                                        background: 'rgba(251,191,36,0.08)',
+                                                        border: '1px solid rgba(251,191,36,0.3)',
+                                                    }}
+                                                >
+                                                    <p className="text-sm font-semibold mb-0.5" style={{ color: '#fbbf24', fontFamily: 'var(--font-body)' }}>
+                                                        ⚠ Scan interrupted — partial results
+                                                    </p>
+                                                    <p className="text-xs" style={{ color: 'rgba(242,242,242,0.55)', fontFamily: 'var(--font-body)' }}>
+                                                        {scanState.error} You can export what was collected below.
+                                                    </p>
+                                                </div>
+                                                {scanState.stats ? (
+                                                    <CollectionResults
+                                                        results={scanState.results}
+                                                        stats={scanState.stats}
+                                                        collectionName={`${scanState.collectionName || 'Collection'} (partial)`}
+                                                        onReset={resetScan}
+                                                    />
+                                                ) : (
+                                                    /* No stats yet — show a minimal export-only panel */
+                                                    <div className="glass-card p-6 flex flex-col gap-4">
+                                                        <p className="text-sm" style={{ color: 'rgba(242,242,242,0.6)', fontFamily: 'var(--font-body)' }}>
+                                                            {scanState.results.length.toLocaleString()} wallets scored before the session ended.
+                                                        </p>
+                                                        <div className="flex gap-3">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence';
+                                                                    const rows = scanState.results.map(r =>
+                                                                        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence}`
+                                                                    );
+                                                                    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+                                                                    const a = document.createElement('a');
+                                                                    a.href = URL.createObjectURL(blob);
+                                                                    a.download = `${scanState.collectionName || 'collection'}_partial.csv`;
+                                                                    a.click();
+                                                                }}
+                                                                className="text-xs px-4 py-2 rounded-lg"
+                                                                style={{
+                                                                    background: 'var(--color-corge-orange)',
+                                                                    color: '#fff',
+                                                                    border: 'none',
+                                                                    fontFamily: 'var(--font-body)',
+                                                                    fontWeight: 600,
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                ↓ Export partial CSV
+                                                            </button>
+                                                            <button
+                                                                onClick={resetScan}
+                                                                className="text-xs px-4 py-2 rounded-lg"
+                                                                style={{
+                                                                    background: 'transparent',
+                                                                    border: '1px solid var(--glass-border)',
+                                                                    color: 'rgba(242,242,242,0.5)',
+                                                                    fontFamily: 'var(--font-body)',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                New scan
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </AnimatePresence>

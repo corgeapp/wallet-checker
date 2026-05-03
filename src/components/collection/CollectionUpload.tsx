@@ -1,34 +1,118 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+import type { CollectionWalletResult } from '../../types';
 
 const WALLET_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const MAX_ADDRESSES = 4000;
 
 interface Props {
-    onStartFromFile: (file: File, collectionName: string) => void;
-    onStartFromAddresses: (body: Record<string, unknown>, collectionName: string) => void;
+    onStartFromFile: (file: File, collectionName: string, partialResults?: CollectionWalletResult[]) => void;
+    onStartFromAddresses: (body: Record<string, unknown>, collectionName: string, partialResults?: CollectionWalletResult[]) => void;
     isLoading: boolean;
 }
 
 function parseAddresses(raw: string): string[] {
-    return raw
-        .split(/[\n,;\t]+/)
-        .map(s => s.trim().replace(/^["']|["']$/g, ''))
-        .filter(s => s.length > 0);
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return [];
+
+    // Detect if this looks like a CSV with a header row
+    const firstLine = lines[0].toLowerCase();
+    const hasHeader = firstLine.includes('wallet') || firstLine.includes('address');
+
+    const addresses: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip header row
+        if (i === 0 && hasHeader) continue;
+
+        // Split on comma or tab, take first column, strip quotes
+        const firstCol = line.split(/[,\t]/)[0].trim().replace(/^["']|["']$/g, '');
+
+        if (WALLET_REGEX.test(firstCol)) {
+            addresses.push(firstCol);
+        }
+    }
+
+    // Fallback: if nothing found via CSV parsing, try treating each token as a potential address
+    // (handles plain newline-separated or space-separated lists)
+    if (addresses.length === 0) {
+        return raw
+            .split(/[\s,;\t]+/)
+            .map(s => s.trim().replace(/^["']|["']$/g, ''))
+            .filter(s => WALLET_REGEX.test(s));
+    }
+
+    return addresses;
+}
+
+/** Parse a partial-results CSV exported by this app into CollectionWalletResult[] */
+function parsePartialCSV(raw: string): CollectionWalletResult[] {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2) return [];
+    // Expected header: wallet,wallet_score,label,is_sweeper,flip_count,confidence
+    const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const idx = {
+        wallet: header.indexOf('wallet'),
+        wallet_score: header.indexOf('wallet_score'),
+        label: header.indexOf('label'),
+        is_sweeper: header.indexOf('is_sweeper'),
+        flip_count: header.indexOf('flip_count'),
+        confidence: header.indexOf('confidence'),
+    };
+    if (idx.wallet === -1 || idx.wallet_score === -1) return []; // not our format
+    const results: CollectionWalletResult[] = [];
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const wallet = cols[idx.wallet]?.trim();
+        if (!wallet || !WALLET_REGEX.test(wallet)) continue;
+        results.push({
+            wallet,
+            wallet_score: parseFloat(cols[idx.wallet_score] ?? '0') || 0,
+            label: cols[idx.label]?.trim() ?? '',
+            is_sweeper: cols[idx.is_sweeper]?.trim().toLowerCase() === 'true',
+            flip_count: parseInt(cols[idx.flip_count] ?? '0', 10) || 0,
+            confidence: parseFloat(cols[idx.confidence] ?? '0') || 0,
+        });
+    }
+    return results;
+}
+
+/** Read a File as text */
+function readFileText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target?.result as string ?? '');
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+    });
 }
 
 export default function CollectionUpload({ onStartFromFile, onStartFromAddresses, isLoading }: Props) {
     const [collectionName, setCollectionName] = useState('');
     const [text, setText] = useState('');
     const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [partialFile, setPartialFile] = useState<File | null>(null);
+    const [partialError, setPartialError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
+    const partialRef = useRef<HTMLInputElement>(null);
 
     // Derived counts for paste mode
-    const parsed = parseAddresses(text);
-    const valid = parsed.filter(a => WALLET_REGEX.test(a));
-    const invalid = parsed.length - valid.length;
+    // parseAddresses returns only valid wallet addresses; compute invalid count separately
+    const valid = parseAddresses(text);
+    const totalTokens = text.trim().length === 0 ? 0 : text
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter((l, i) => {
+            if (l.length === 0) return false;
+            // skip header row
+            if (i === 0 && (l.toLowerCase().includes('wallet') || l.toLowerCase().includes('address'))) return false;
+            return true;
+        }).length;
+    const invalid = Math.max(0, totalTokens - valid.length);
 
     function handleFileSelected(file: File) {
         setPendingFile(file);
@@ -48,12 +132,35 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
         if (fileRef.current) fileRef.current.value = '';
     }
 
-    function handleSubmit() {
+    function clearPartial() {
+        setPartialFile(null);
+        setPartialError(null);
+        if (partialRef.current) partialRef.current.value = '';
+    }
+
+    async function handleSubmit() {
         setError(null);
+        setPartialError(null);
+
+        // Parse partial results if provided
+        let partialResults: CollectionWalletResult[] | undefined;
+        if (partialFile) {
+            try {
+                const raw = await readFileText(partialFile);
+                const parsed = parsePartialCSV(raw);
+                if (parsed.length === 0) {
+                    setPartialError('Could not read partial results — make sure it\'s a CSV exported from this app.');
+                    return;
+                }
+                partialResults = parsed;
+            } catch {
+                setPartialError('Failed to read partial results file.');
+                return;
+            }
+        }
 
         if (pendingFile) {
-            // CSV/TXT file — send directly to backend
-            onStartFromFile(pendingFile, collectionName.trim());
+            onStartFromFile(pendingFile, collectionName.trim(), partialResults);
             return;
         }
 
@@ -66,7 +173,17 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
             setError(`Maximum ${MAX_ADDRESSES} addresses allowed. You have ${valid.length}.`);
             return;
         }
-        onStartFromAddresses({ addresses: valid }, collectionName.trim());
+
+        // Subtract already-scored addresses
+        const alreadyScored = new Set((partialResults ?? []).map(r => r.wallet.toLowerCase()));
+        const remaining = valid.filter(a => !alreadyScored.has(a.toLowerCase()));
+
+        if (remaining.length === 0) {
+            setError('All addresses in this list are already in your partial results — nothing left to scan.');
+            return;
+        }
+
+        onStartFromAddresses({ addresses: remaining }, collectionName.trim(), partialResults);
     }
 
     const canSubmit = !isLoading && (pendingFile !== null || valid.length > 0);
@@ -224,6 +341,95 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
                 </div>
             )}
 
+            {/* ── Resume from partial results ── */}
+            <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                    <label
+                        className="block text-xs uppercase tracking-widest"
+                        style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}
+                    >
+                        Resume from partial results
+                    </label>
+                    <span
+                        className="text-xs px-1.5 py-0.5 rounded"
+                        style={{
+                            background: 'rgba(255,90,31,0.12)',
+                            color: 'var(--color-corge-orange)',
+                            fontFamily: 'var(--font-body)',
+                            border: '1px solid rgba(255,90,31,0.2)',
+                        }}
+                    >
+                        optional
+                    </span>
+                </div>
+                <p className="text-xs mb-2" style={{ color: 'rgba(242,242,242,0.3)', fontFamily: 'var(--font-body)' }}>
+                    Had a scan interrupted? Upload the partial CSV — already-scored wallets will be skipped and merged into the final results.
+                </p>
+                {partialFile ? (
+                    <div
+                        className="flex items-center gap-3 rounded-xl px-4 py-3"
+                        style={{
+                            background: 'rgba(255,90,31,0.06)',
+                            border: '1px solid rgba(255,90,31,0.25)',
+                        }}
+                    >
+                        <span className="text-base">📊</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-corge-orange)', fontFamily: 'var(--font-body)' }}>
+                                {partialFile.name}
+                            </p>
+                            <p className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
+                                {(partialFile.size / 1024).toFixed(1)} KB — will be merged with new results
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={clearPartial}
+                            className="text-xs px-2 py-1 rounded"
+                            style={{
+                                background: 'rgba(248,113,113,0.1)',
+                                border: '1px solid rgba(248,113,113,0.3)',
+                                color: '#f87171',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--font-body)',
+                            }}
+                        >
+                            ✕ Remove
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => partialRef.current?.click()}
+                        className="w-full rounded-xl py-2.5 text-xs transition-all"
+                        style={{
+                            background: 'rgba(255,255,255,0.02)',
+                            border: '1px dashed rgba(255,90,31,0.3)',
+                            color: 'rgba(242,242,242,0.4)',
+                            fontFamily: 'var(--font-body)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        + Upload partial results CSV
+                    </button>
+                )}
+                <input
+                    ref={partialRef}
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) { setPartialFile(f); setPartialError(null); }
+                    }}
+                />
+                {partialError && (
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--color-error)', fontFamily: 'var(--font-body)' }}>
+                        {partialError}
+                    </p>
+                )}
+            </div>
+
             {error && (
                 <p className="text-xs" style={{ color: 'var(--color-error)', fontFamily: 'var(--font-body)' }}>
                     {error}
@@ -249,7 +455,7 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
                         {pendingFile ? 'Uploading...' : 'Starting scan...'}
                     </>
                 ) : pendingFile ? (
-                    `Upload & Scan`
+                    partialFile ? 'Upload & Resume Scan' : 'Upload & Scan'
                 ) : (
                     `Scan ${valid.length > 0 ? valid.length.toLocaleString() + ' wallets' : 'wallets'}`
                 )}
@@ -257,3 +463,4 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
         </motion.div>
     );
 }
+

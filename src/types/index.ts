@@ -105,7 +105,7 @@ export interface CollectionStalled {
     resultsCollected: number;
 }
 
-export type CollectionStatus = 'running' | 'done' | 'stalled';
+export type CollectionStatus = 'running' | 'done' | 'stalled' | 'cancelled';
 
 export interface CollectionSessionResponse {
     sessionId: string;
@@ -113,6 +113,7 @@ export interface CollectionSessionResponse {
     status: CollectionStatus;
     progress: CollectionProgress;
     stalled: CollectionStalled | null;
+    cancelled?: { reason: string };
     stats: CollectionStats;
     results: CollectionWalletResult[];
 }
@@ -126,7 +127,7 @@ export interface CollectionScanResponse {
 }
 
 export interface CollectionScanState {
-    phase: 'idle' | 'uploading' | 'scanning' | 'done' | 'stalled' | 'error';
+    phase: 'idle' | 'uploading' | 'scanning' | 'done' | 'stalled' | 'cancelled' | 'interrupted' | 'error';
     sessionId: string | null;
     collectionName: string;
     progress: CollectionProgress | null;
