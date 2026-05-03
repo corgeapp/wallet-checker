@@ -219,6 +219,13 @@ export default function App() {
                                                     stats={scanState.stats}
                                                     collectionName={scanState.collectionName}
                                                     onReset={resetScan}
+                                                    onRescan={(zeroAddresses) => {
+                                                        startScan(
+                                                            { addresses: zeroAddresses },
+                                                            `${scanState.collectionName} (rescan)`,
+                                                            scanState.results
+                                                        );
+                                                    }}
                                                 />
                                             </div>
                                         )}

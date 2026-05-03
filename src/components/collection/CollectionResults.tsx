@@ -8,6 +8,7 @@ interface Props {
     stats: CollectionStats;
     collectionName: string;
     onReset: () => void;
+    onRescan?: (zeroAddresses: string[]) => void;
 }
 
 type SortKey = 'wallet_score' | 'flip_count' | 'confidence' | 'label';
@@ -27,7 +28,7 @@ function exportCSV(results: CollectionWalletResult[], name: string) {
     URL.revokeObjectURL(url);
 }
 
-export default function CollectionResults({ results, stats, collectionName, onReset }: Props) {
+export default function CollectionResults({ results, stats, collectionName, onReset, onRescan }: Props) {
     const [sortKey, setSortKey] = useState<SortKey>('wallet_score');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -37,6 +38,10 @@ export default function CollectionResults({ results, stats, collectionName, onRe
 
     const newWalletCount = useMemo(() =>
         results.filter(r => r.is_new_wallet).length,
+        [results]);
+
+    const zeroScoreCount = useMemo(() =>
+        results.filter(r => r.wallet_score === 0).length,
         [results]);
 
     const labels = useMemo(() => {
@@ -95,7 +100,25 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                     >
                         {collectionName || 'Collection'} — Results
                     </h2>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                        {onRescan && zeroScoreCount > 0 && (
+                            <button
+                                onClick={() => {
+                                    const zeros = results.filter(r => r.wallet_score === 0).map(r => r.wallet);
+                                    onRescan(zeros);
+                                }}
+                                className="text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5"
+                                style={{
+                                    background: 'rgba(255,90,31,0.12)',
+                                    border: '1px solid rgba(255,90,31,0.3)',
+                                    color: 'var(--color-corge-orange)',
+                                    fontFamily: 'var(--font-body)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                🔄 Rescan {zeroScoreCount.toLocaleString()} zero-score wallets
+                            </button>
+                        )}
                         <button
                             onClick={() => exportCSV(results, collectionName)}
                             className="text-xs px-3 py-2 rounded-lg transition-all"
