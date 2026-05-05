@@ -9,6 +9,8 @@ export interface TransferCheckState {
     total: number;
     transferred: number;
     not_transferred: number;
+    sales: number;
+    plain_transfers: number;
     results: TransferResult[];
     error: string | null;
 }
@@ -18,6 +20,8 @@ const INITIAL: TransferCheckState = {
     total: 0,
     transferred: 0,
     not_transferred: 0,
+    sales: 0,
+    plain_transfers: 0,
     results: [],
     error: null,
 };
@@ -34,6 +38,8 @@ export function useTransferCheck() {
                 total: data.total,
                 transferred: data.transferred,
                 not_transferred: data.not_transferred,
+                sales: data.sales ?? 0,
+                plain_transfers: data.plain_transfers ?? 0,
                 results: data.results,
                 error: null,
             });

@@ -203,7 +203,7 @@ export async function checkTransferTo(
     contract: string,
     addresses: string[]
 ): Promise<TransferCheckResponse> {
-    return request<TransferCheckResponse>('/collection/transfer-to', {
+    return request<TransferCheckResponse>('/collection/transfer-to?classify=true', {
         method: 'POST',
         body: JSON.stringify({ contract, addresses }),
     });

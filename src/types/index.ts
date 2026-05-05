@@ -83,6 +83,7 @@ export interface CollectionWalletResult {
     transferred_at?: string | null;
     token_id?: string | null;
     tx_hash?: string | null;
+    transfer_type?: 'sale' | 'transfer' | 'unknown' | null;
 }
 
 export interface CollectionProgress {
@@ -220,6 +221,7 @@ export interface TransferResult {
     token_id: string | null;
     tx_hash: string | null;
     transferred_at: string | null;
+    type?: 'sale' | 'transfer' | 'unknown' | null;
 }
 
 export interface TransferCheckResponse {
@@ -228,6 +230,8 @@ export interface TransferCheckResponse {
     total: number;
     transferred: number;
     not_transferred: number;
+    sales?: number;
+    plain_transfers?: number;
     errors: number;
     results: TransferResult[];
 }

@@ -101,9 +101,9 @@ function mergeResults(base: CollectionWalletResult[], updates: CollectionWalletR
 }
 
 function exportCSV(results: CollectionWalletResult[], name: string) {
-    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at';
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,transfer_type';
     const rows = results.map(r =>
-        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''}`
+        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.transfer_type ?? ''}`
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -377,7 +377,7 @@ function FirstTxPage({ jeetZeroAddresses, onAppend, onBack }: FirstTxPageProps) 
 
 interface TransferPageProps {
     addresses: string[];
-    onAppend: (results: Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null }>) => void;
+    onAppend: (results: Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null; type?: string | null }>) => void;
     onBack: () => void;
 }
 
@@ -399,7 +399,7 @@ function TransferPage({ addresses, onAppend, onBack }: TransferPageProps) {
     }
 
     function handleAppend() {
-        const map = new Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null }>();
+        const map = new Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null; type?: string | null }>();
         for (const r of state.results) {
             if (r?.address) {
                 map.set(r.address.toLowerCase(), {
@@ -408,6 +408,7 @@ function TransferPage({ addresses, onAppend, onBack }: TransferPageProps) {
                     transferred_at: r.transferred_at,
                     token_id: r.token_id,
                     tx_hash: r.tx_hash,
+                    type: r.type ?? null,
                 });
             }
         }
@@ -491,10 +492,11 @@ function TransferPage({ addresses, onAppend, onBack }: TransferPageProps) {
                 {state.phase === 'done' && !appended && (
                     <div className="flex flex-col gap-4">
                         {/* Summary */}
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
                                 { label: 'Total checked', value: state.total.toLocaleString(), color: 'var(--color-corge-offwhite)' },
                                 { label: 'Transferred', value: state.transferred.toLocaleString(), color: '#f87171' },
+                                { label: 'Sales', value: (state.sales ?? 0).toLocaleString(), color: '#fbbf24' },
                                 { label: 'Still holding', value: state.not_transferred.toLocaleString(), color: '#34d399' },
                             ].map(({ label, value, color }) => (
                                 <div key={label} className="rounded-xl px-3 py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
@@ -521,6 +523,15 @@ function TransferPage({ addresses, onAppend, onBack }: TransferPageProps) {
                                             <span style={{ color: '#f87171', fontFamily: 'monospace' }}>
                                                 {r.to ? `${r.to.slice(0, 8)}...${r.to.slice(-4)}` : '—'}
                                             </span>
+                                            {r.type && (
+                                                <span className="px-1.5 py-0.5 rounded text-xs font-semibold" style={{
+                                                    background: r.type === 'sale' ? 'rgba(251,191,36,0.15)' : 'rgba(96,165,250,0.15)',
+                                                    color: r.type === 'sale' ? '#fbbf24' : r.type === 'transfer' ? '#60a5fa' : '#a3a3a3',
+                                                    border: `1px solid ${r.type === 'sale' ? 'rgba(251,191,36,0.3)' : 'rgba(96,165,250,0.3)'}`,
+                                                }}>
+                                                    {r.type}
+                                                </span>
+                                            )}
                                             {r.transferred_at && (
                                                 <span style={{ color: 'rgba(242,242,242,0.3)' }}>
                                                     {new Date(r.transferred_at).toLocaleDateString()}
@@ -635,7 +646,7 @@ export default function ScanHistory() {
         setScan(prev => prev ? { ...prev, results: updated, stats: computeStats(updated) } : null);
     }
 
-    function handleAppendTransfer(map: Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null }>) {
+    function handleAppendTransfer(map: Map<string, { transferred: boolean; to: string | null; transferred_at: string | null; token_id: string | null; tx_hash: string | null; type?: string | null }>) {
         if (!scan) return;
         const updated = scan.results.map(r => {
             const key = r.wallet?.toLowerCase();
@@ -648,6 +659,7 @@ export default function ScanHistory() {
                 transferred_at: data.transferred_at,
                 token_id: data.token_id,
                 tx_hash: data.tx_hash,
+                transfer_type: (data.type ?? null) as 'sale' | 'transfer' | 'unknown' | null,
             };
         });
         setScan(prev => prev ? { ...prev, results: updated, stats: computeStats(updated) } : null);
