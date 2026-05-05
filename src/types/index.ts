@@ -224,6 +224,21 @@ export interface TransferResult {
     type?: 'sale' | 'transfer' | 'unknown' | null;
 }
 
+export interface TransferSessionResponse {
+    status: 'running' | 'done' | 'error';
+    progress: {
+        total: number;
+        completed: number;
+        remaining: number;
+        percent: number;
+    };
+    transferred: number;
+    not_transferred: number;
+    sales: number;
+    plain_transfers: number;
+    results: TransferResult[];
+}
+
 export interface TransferCheckResponse {
     success: boolean;
     contract: string;
@@ -234,4 +249,9 @@ export interface TransferCheckResponse {
     plain_transfers?: number;
     errors: number;
     results: TransferResult[];
+}
+
+export interface TransferStartResponse {
+    sessionId: string;
+    total: number;
 }

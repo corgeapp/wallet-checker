@@ -197,14 +197,18 @@ export async function getFirstTxSession(sessionId: string): Promise<FirstTxSessi
 
 // ─── Transfer Check API ───────────────────────────────────────────────────────
 
-import type { TransferCheckResponse } from '../types';
+import type { TransferStartResponse, TransferSessionResponse } from '../types';
 
-export async function checkTransferTo(
+export async function startTransferCheck(
     contract: string,
     addresses: string[]
-): Promise<TransferCheckResponse> {
-    return request<TransferCheckResponse>('/collection/transfer-to?classify=true', {
+): Promise<TransferStartResponse> {
+    return request<TransferStartResponse>('/collection/transfer-to?classify=true', {
         method: 'POST',
         body: JSON.stringify({ contract, addresses }),
     });
+}
+
+export async function getTransferSession(sessionId: string): Promise<TransferSessionResponse> {
+    return request<TransferSessionResponse>(`/collection/transfer-to/${sessionId}`);
 }

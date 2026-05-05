@@ -473,17 +473,41 @@ function TransferPage({ addresses, onAppend, onBack }: TransferPageProps) {
                     </div>
                 )}
 
-                {/* Loading */}
+                {/* Loading — submitted, waiting for first poll */}
                 {state.phase === 'loading' && (
                     <div className="flex flex-col items-center gap-4 py-6">
                         <span className="inline-block w-10 h-10 rounded-full border-2 border-white/10 animate-spin" style={{ borderTopColor: '#FF006B' }} />
-                        <div className="text-center">
-                            <p className="text-sm font-semibold" style={{ color: 'var(--color-corge-offwhite)', fontFamily: 'var(--font-body)' }}>
-                                Checking {state.total.toLocaleString()} wallets...
-                            </p>
-                            <p className="text-xs mt-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
-                                ~210ms per wallet · may take a few minutes
-                            </p>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--color-corge-offwhite)', fontFamily: 'var(--font-body)' }}>
+                            Submitting {state.total.toLocaleString()} wallets...
+                        </p>
+                    </div>
+                )}
+
+                {/* Scanning — polling in progress */}
+                {state.phase === 'scanning' && (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex justify-between text-xs" style={{ fontFamily: 'var(--font-body)', color: 'rgba(242,242,242,0.5)' }}>
+                            <span>Checking… {state.completed.toLocaleString()} / {state.total.toLocaleString()}</span>
+                            <span style={{ color: '#FF006B' }}>{state.percent}%</span>
+                        </div>
+                        <div className="w-full rounded-full overflow-hidden" style={{ height: '6px', background: 'rgba(255,255,255,0.08)' }}>
+                            <motion.div className="h-full rounded-full" style={{ background: '#FF006B' }}
+                                animate={{ width: `${state.percent}%` }} transition={{ duration: 0.5 }} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl px-3 py-2 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+                                <p className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Transferred so far</p>
+                                <p className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: '#f87171' }}>{state.transferred}</p>
+                            </div>
+                            <div className="rounded-xl px-3 py-2 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+                                <p className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Sales so far</p>
+                                <p className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: '#fbbf24' }}>{state.sales}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <motion.div className="w-2 h-2 rounded-full" style={{ background: '#FF006B' }}
+                                animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                            <p className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Polling every 5 seconds</p>
                         </div>
                     </div>
                 )}
