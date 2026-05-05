@@ -78,6 +78,11 @@ export interface CollectionWalletResult {
     confidence: number;
     is_new_wallet?: boolean;
     first_tx_date?: string | null;
+    transferred?: boolean | null;
+    transferred_to?: string | null;
+    transferred_at?: string | null;
+    token_id?: string | null;
+    tx_hash?: string | null;
 }
 
 export interface CollectionProgress {
@@ -204,4 +209,25 @@ export interface FirstTxScanResponse {
 
 export interface CollectionWalletResultWithFirstTx extends CollectionWalletResult {
     first_tx_date?: string | null;
+}
+
+// ─── Transfer Check Types ─────────────────────────────────────────────────────
+
+export interface TransferResult {
+    address: string;
+    transferred: boolean;
+    to: string | null;
+    token_id: string | null;
+    tx_hash: string | null;
+    transferred_at: string | null;
+}
+
+export interface TransferCheckResponse {
+    success: boolean;
+    contract: string;
+    total: number;
+    transferred: number;
+    not_transferred: number;
+    errors: number;
+    results: TransferResult[];
 }

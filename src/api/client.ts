@@ -194,3 +194,17 @@ export async function startFirstTxScan(addresses: string[]): Promise<FirstTxScan
 export async function getFirstTxSession(sessionId: string): Promise<FirstTxSessionResponse> {
     return request<FirstTxSessionResponse>(`/wallets/first-tx/${sessionId}`);
 }
+
+// ─── Transfer Check API ───────────────────────────────────────────────────────
+
+import type { TransferCheckResponse } from '../types';
+
+export async function checkTransferTo(
+    contract: string,
+    addresses: string[]
+): Promise<TransferCheckResponse> {
+    return request<TransferCheckResponse>('/collection/transfer-to', {
+        method: 'POST',
+        body: JSON.stringify({ contract, addresses }),
+    });
+}
