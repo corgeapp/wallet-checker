@@ -101,9 +101,9 @@ function mergeResults(base: CollectionWalletResult[], updates: CollectionWalletR
 }
 
 function exportCSV(results: CollectionWalletResult[], name: string) {
-    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,transfer_type';
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,transfer_type';
     const rows = results.map(r =>
-        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.transfer_type ?? ''}`
+        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.transfer_type ?? ''}`
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -122,7 +122,7 @@ interface ParsedScan {
     parseErrors: string[];
 }
 
-type HistoryView = 'upload' | 'results' | 'rescan' | 'firsttx' | 'transfer';
+type HistoryView = 'upload' | 'results' | 'rescan' | 'rescan-jeet' | 'firsttx' | 'transfer';
 
 // ─── Rescan page ──────────────────────────────────────────────────────────────
 
@@ -234,6 +234,135 @@ function RescanPage({ zeroAddresses, collectionName, onMerge, onBack }: RescanPa
                     <div className="flex flex-col gap-3">
                         <p className="text-sm" style={{ color: '#f87171', fontFamily: 'var(--font-body)' }}>{state.error}</p>
                         <button onClick={() => { reset(); startRescan(zeroAddresses, collectionName); }}
+                            className="text-xs px-4 py-2 rounded-lg w-fit"
+                            style={{ background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                            Retry
+                        </button>
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Rescan Jeet page ─────────────────────────────────────────────────────────
+
+interface RescanJeetPageProps {
+    jeetAddresses: string[];
+    collectionName: string;
+    onMerge: (newResults: CollectionWalletResult[]) => void;
+    onBack: () => void;
+}
+
+function RescanJeetPage({ jeetAddresses, collectionName, onMerge, onBack }: RescanJeetPageProps) {
+    const { state, startRescan, reset } = useRescan();
+    const [merged, setMerged] = useState(false);
+
+    function handleMerge() {
+        onMerge(state.newResults);
+        setMerged(true);
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="w-full flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+                <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)', cursor: 'pointer', fontSize: '0.875rem' }}>
+                    ← Back
+                </button>
+                <div>
+                    <h2 className="text-xl font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-corge-offwhite)' }}>
+                        Rescan Jeet Wallets
+                    </h2>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
+                        {jeetAddresses.length.toLocaleString()} Jeet wallets — rescanning to get updated scores
+                    </p>
+                </div>
+            </div>
+
+            <div className="glass-card p-6 flex flex-col gap-5">
+                {/* Explanation */}
+                <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                    <p className="text-xs font-semibold mb-1" style={{ color: '#f87171', fontFamily: 'var(--font-body)' }}>Why rescan Jeet wallets?</p>
+                    <p className="text-xs" style={{ color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)' }}>
+                        Jeet wallets may have been misclassified or their behavior may have changed. Rescanning sends them back through the scoring pipeline to get updated, accurate scores. The new scores will replace the old ones in your dataset.
+                    </p>
+                </div>
+
+                {/* Idle */}
+                {state.phase === 'idle' && (
+                    <div className="flex flex-col items-center gap-4 py-4 text-center">
+                        <span className="text-4xl">🔄</span>
+                        <div>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--color-corge-offwhite)', fontFamily: 'var(--font-body)' }}>
+                                Ready to rescan {jeetAddresses.length.toLocaleString()} Jeet wallets
+                            </p>
+                            <p className="text-xs mt-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
+                                Results will be merged back into your dataset, replacing the old scores for these wallets.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => startRescan(jeetAddresses, collectionName)}
+                            className="px-6 py-3 rounded-lg font-semibold text-sm"
+                            style={{ background: '#f87171', color: '#fff', border: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer', minHeight: '44px' }}
+                        >
+                            Start Rescan
+                        </button>
+                    </div>
+                )}
+
+                {/* Scanning */}
+                {state.phase === 'scanning' && (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex justify-between text-xs" style={{ fontFamily: 'var(--font-body)', color: 'rgba(242,242,242,0.5)' }}>
+                            <span>Scanning… {state.completed.toLocaleString()} / {state.total.toLocaleString()}</span>
+                            <span style={{ color: '#f87171' }}>{state.percent}%</span>
+                        </div>
+                        <div className="w-full rounded-full overflow-hidden" style={{ height: '6px', background: 'rgba(255,255,255,0.08)' }}>
+                            <motion.div className="h-full rounded-full" style={{ background: '#f87171' }}
+                                animate={{ width: `${state.percent}%` }} transition={{ duration: 0.5 }} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <motion.div className="w-2 h-2 rounded-full" style={{ background: '#f87171' }}
+                                animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                            <p className="text-xs" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Live — updating every 5 seconds</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Done */}
+                {state.phase === 'done' && !merged && (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex justify-between text-xs" style={{ fontFamily: 'var(--font-body)', color: 'rgba(242,242,242,0.5)' }}>
+                            <span style={{ color: '#34d399' }}>✓ {state.newResults.length.toLocaleString()} wallets rescanned</span>
+                            <span style={{ color: '#34d399' }}>100%</span>
+                        </div>
+                        <div className="w-full rounded-full overflow-hidden" style={{ height: '6px', background: 'rgba(255,255,255,0.08)' }}>
+                            <div className="h-full rounded-full" style={{ background: '#34d399', width: '100%' }} />
+                        </div>
+                        <div className="flex gap-3 flex-wrap">
+                            <button onClick={handleMerge} className="px-5 py-2.5 rounded-lg font-semibold text-sm"
+                                style={{ background: '#34d399', color: '#0a0a0a', border: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer', minHeight: '44px' }}>
+                                ✓ Merge results & go back
+                            </button>
+                            <button onClick={() => { reset(); }} className="px-4 py-2.5 rounded-lg text-sm"
+                                style={{ background: 'transparent', border: '1px solid var(--glass-border)', color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                                Rescan again
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {merged && (
+                    <div className="text-center py-4">
+                        <p className="text-sm" style={{ color: '#34d399', fontFamily: 'var(--font-body)' }}>✓ Results merged. Go back to view the updated dataset.</p>
+                    </div>
+                )}
+
+                {state.phase === 'error' && (
+                    <div className="flex flex-col gap-3">
+                        <p className="text-sm" style={{ color: '#f87171', fontFamily: 'var(--font-body)' }}>{state.error}</p>
+                        <button onClick={() => { reset(); startRescan(jeetAddresses, collectionName); }}
                             className="text-xs px-4 py-2 rounded-lg w-fit"
                             style={{ background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
                             Retry
@@ -695,6 +824,7 @@ export default function ScanHistory() {
         .replace(/_0x[a-fA-F0-9]{40}$/i, '') ?? '';
 
     const zeroAddresses = scan?.results.filter(r => r.wallet_score === 0).map(r => r.wallet) ?? [];
+    const jeetAddresses = scan?.results.filter(r => r.label === 'Jeet').map(r => r.wallet) ?? [];
     const jeetZeroAddresses = scan?.results.filter(r => r.label === 'Jeet' && r.flip_count === 0).map(r => r.wallet) ?? [];
     // Jeet + Paper Hands for transfer check (capped at 2000 per backend limit)
     const transferAddresses = (scan?.results.filter(r => r.label === 'Jeet' || r.label === 'Paper Hands').map(r => r.wallet) ?? []).slice(0, 2000);
@@ -775,6 +905,14 @@ export default function ScanHistory() {
                                     🔄 Rescan {zeroAddresses.length.toLocaleString()} zero-score
                                 </button>
                             )}
+                            {/* Rescan Jeet wallets button */}
+                            {scan.results.filter(r => r.label === 'Jeet').length > 0 && (
+                                <button onClick={() => setView('rescan-jeet')}
+                                    className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5"
+                                    style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                                    🔄 Rescan {scan.results.filter(r => r.label === 'Jeet').length.toLocaleString()} Jeet wallets
+                                </button>
+                            )}
                             {jeetZeroAddresses.length > 0 && (
                                 <button onClick={() => setView('firsttx')}
                                     className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5"
@@ -825,6 +963,16 @@ export default function ScanHistory() {
             {view === 'rescan' && scan && (
                 <RescanPage key="rescan"
                     zeroAddresses={zeroAddresses}
+                    collectionName={collectionName}
+                    onMerge={(newResults) => { handleMergeRescan(newResults); setView('results'); }}
+                    onBack={() => setView('results')}
+                />
+            )}
+
+            {/* ── Rescan Jeet page ── */}
+            {view === 'rescan-jeet' && scan && (
+                <RescanJeetPage key="rescan-jeet"
+                    jeetAddresses={jeetAddresses}
                     collectionName={collectionName}
                     onMerge={(newResults) => { handleMergeRescan(newResults); setView('results'); }}
                     onBack={() => setView('results')}
