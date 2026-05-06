@@ -69,7 +69,15 @@ export interface QueueStatusBannerProps {
 
 // ─── Collection Scanner Types ─────────────────────────────────────────────────
 
+/**
+ * Represents a wallet analysis result from the collection scanner.
+ * 
+ * This interface includes both core wallet scoring fields and optional holder metrics.
+ * All holder metrics fields are optional to maintain backward compatibility with
+ * existing localStorage data and API responses that may not include these fields.
+ */
 export interface CollectionWalletResult {
+    // Core wallet scoring fields
     wallet: string;
     wallet_score: number;
     label: string;
@@ -84,6 +92,59 @@ export interface CollectionWalletResult {
     token_id?: string | null;
     tx_hash?: string | null;
     transfer_type?: 'sale' | 'transfer' | 'unknown' | null;
+
+    /**
+     * Holder metrics - Optional fields providing deeper insights into wallet behavior.
+     * These fields may be undefined for:
+     * - Results from older API versions
+     * - Results loaded from localStorage before holder metrics were added
+     * - Wallets where holder analysis is not available
+     * 
+     * UI components must use optional chaining (?.) or nullish coalescing (??)
+     * when accessing these fields to ensure graceful degradation.
+     */
+
+    /**
+     * Composite score indicating holder quality (typically 0-100).
+     * Higher scores indicate stronger holder behavior patterns.
+     */
+    holder_score?: number;
+
+    /**
+     * Human-readable classification label for holder behavior.
+     * Examples: "Strong Holder", "Active Trader", "Collector"
+     */
+    holder_label?: string;
+
+    /**
+     * Total number of NFT purchases made by this wallet.
+     * Non-negative integer representing historical buy transactions.
+     */
+    total_buys?: number;
+
+    /**
+     * Total USD value spent on NFT purchases.
+     * Non-negative number representing cumulative spending.
+     */
+    total_usd_spent?: number;
+
+    /**
+     * Number of distinct NFT collections held by this wallet.
+     * Non-negative integer indicating collection diversity.
+     */
+    unique_collections?: number;
+
+    /**
+     * Average purchase price in USD across all NFT buys.
+     * Non-negative number calculated as total_usd_spent / total_buys.
+     */
+    avg_buy_price_usd?: number;
+
+    /**
+     * Ratio of minted NFTs to total NFT acquisitions (0-1 inclusive).
+     * 0 = all secondary purchases, 1 = all mints, 0.5 = equal mix.
+     */
+    mint_ratio?: number;
 }
 
 export interface CollectionProgress {

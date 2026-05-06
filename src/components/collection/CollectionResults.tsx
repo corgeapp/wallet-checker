@@ -11,13 +11,25 @@ interface Props {
     onRescan?: (zeroAddresses: string[]) => void;
 }
 
-type SortKey = 'wallet_score' | 'flip_count' | 'confidence' | 'label';
+type SortKey = 'wallet_score' | 'flip_count' | 'confidence' | 'label' | 'holder_score';
 type SortDir = 'asc' | 'desc';
 
+/**
+ * Export collection results to CSV format.
+ * 
+ * Includes all holder metrics fields in the export. For results without holder metrics,
+ * empty strings are used to maintain CSV structure consistency. This ensures:
+ * - Backward compatibility: old results export with empty holder metric columns
+ * - Forward compatibility: new results export with all available data
+ * - Consistent CSV structure: all rows have the same number of columns
+ * 
+ * @param results - Array of wallet results to export
+ * @param name - Collection name used for the filename
+ */
 function exportCSV(results: CollectionWalletResult[], name: string) {
-    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence';
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio';
     const rows = results.map(r =>
-        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence}`
+        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''}`
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -53,12 +65,85 @@ export default function CollectionResults({ results, stats, collectionName, onRe
         return ['all', ...Array.from(s).sort()];
     }, [results]);
 
+    /**
+     * Holder Metrics Display Logic
+     * 
+     * Holder metrics are optional fields that may not be present in all results.
+     * This can occur when:
+     * - Loading older results from localStorage (backward compatibility)
+     * - API returns results without holder metrics
+     * - Partial data availability for certain wallets
+     * 
+     * The UI gracefully handles missing metrics by:
+     * 1. Checking if ANY result has holder metrics before showing the section
+     * 2. Using optional chaining (?.) and nullish coalescing (??) for safe access
+     * 3. Displaying "—" for missing individual values
+     * 4. Only calculating averages from results that have the metrics
+     */
+
+    // Check if any results have holder metrics to determine if we should show the holder metrics section
+    const hasHolderMetrics = useMemo(() =>
+        results.some(r =>
+            r.holder_score !== undefined ||
+            r.holder_label !== undefined ||
+            r.total_buys !== undefined ||
+            r.total_usd_spent !== undefined ||
+            r.unique_collections !== undefined ||
+            r.avg_buy_price_usd !== undefined ||
+            r.mint_ratio !== undefined
+        ),
+        [results]);
+
+    // Calculate average holder metrics across all results that have holder_score defined.
+    // This ensures we only average over wallets with complete holder metrics data,
+    // maintaining accuracy when mixing old results (no metrics) with new results (with metrics).
+    const holderMetricsAvg = useMemo(() => {
+        if (!hasHolderMetrics) return null;
+
+        const withMetrics = results.filter(r => r.holder_score !== undefined);
+        if (withMetrics.length === 0) return null;
+
+        const sum = withMetrics.reduce((acc, r) => ({
+            holder_score: acc.holder_score + (r.holder_score ?? 0),
+            total_buys: acc.total_buys + (r.total_buys ?? 0),
+            total_usd_spent: acc.total_usd_spent + (r.total_usd_spent ?? 0),
+            unique_collections: acc.unique_collections + (r.unique_collections ?? 0),
+            avg_buy_price_usd: acc.avg_buy_price_usd + (r.avg_buy_price_usd ?? 0),
+            mint_ratio: acc.mint_ratio + (r.mint_ratio ?? 0),
+        }), {
+            holder_score: 0,
+            total_buys: 0,
+            total_usd_spent: 0,
+            unique_collections: 0,
+            avg_buy_price_usd: 0,
+            mint_ratio: 0,
+        });
+
+        return {
+            holder_score: sum.holder_score / withMetrics.length,
+            total_buys: sum.total_buys / withMetrics.length,
+            total_usd_spent: sum.total_usd_spent / withMetrics.length,
+            unique_collections: sum.unique_collections / withMetrics.length,
+            avg_buy_price_usd: sum.avg_buy_price_usd / withMetrics.length,
+            mint_ratio: sum.mint_ratio / withMetrics.length,
+        };
+    }, [results, hasHolderMetrics]);
+
+    // Sort and filter results based on current sort key, direction, label filter, and new wallet filter.
+    // Sorting logic handles undefined values (e.g., missing holder_score) by treating them as lowest values.
+    // This ensures results without holder metrics appear at the end when sorting by holder_score descending.
     const sorted = useMemo(() => {
         let filtered = labelFilter === 'all' ? results : results.filter(r => r.label === labelFilter);
         if (newWalletOnly) filtered = filtered.filter(r => r.is_new_wallet);
         return [...filtered].sort((a, b) => {
-            const av = a[sortKey] as number | string;
-            const bv = b[sortKey] as number | string;
+            const av = a[sortKey] as number | string | undefined;
+            const bv = b[sortKey] as number | string | undefined;
+
+            // Handle undefined values - treat as lowest value
+            if (av === undefined && bv === undefined) return 0;
+            if (av === undefined) return sortDir === 'desc' ? 1 : -1;
+            if (bv === undefined) return sortDir === 'desc' ? -1 : 1;
+
             if (typeof av === 'number' && typeof bv === 'number') {
                 return sortDir === 'desc' ? bv - av : av - bv;
             }
@@ -195,6 +280,57 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                         ))}
                     </div>
                 </div>
+
+                {/* Holder metrics section - only show if any results have holder metrics.
+                    This conditional rendering ensures backward compatibility:
+                    - Old results without holder metrics: section is hidden
+                    - New results with holder metrics: section is displayed
+                    - Mixed results: section shows averages from results with metrics
+                */}
+                {hasHolderMetrics && holderMetricsAvg && (
+                    <div className="mt-6 pt-6" style={{ borderTop: '1px solid var(--glass-border)' }}>
+                        <p className="text-xs uppercase tracking-widest mb-3" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>Holder metrics</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                                {
+                                    label: 'Avg holder score',
+                                    value: holderMetricsAvg.holder_score !== undefined ? holderMetricsAvg.holder_score.toFixed(1) : '—',
+                                    color: 'var(--color-corge-orange)'
+                                },
+                                {
+                                    label: 'Avg total buys',
+                                    value: holderMetricsAvg.total_buys !== undefined ? holderMetricsAvg.total_buys.toFixed(1) : '—',
+                                    color: 'var(--color-corge-offwhite)'
+                                },
+                                {
+                                    label: 'Avg USD spent',
+                                    value: holderMetricsAvg.total_usd_spent !== undefined ? `$${holderMetricsAvg.total_usd_spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—',
+                                    color: '#34d399'
+                                },
+                                {
+                                    label: 'Avg collections',
+                                    value: holderMetricsAvg.unique_collections !== undefined ? holderMetricsAvg.unique_collections.toFixed(1) : '—',
+                                    color: '#a3a3a3'
+                                },
+                                {
+                                    label: 'Avg buy price',
+                                    value: holderMetricsAvg.avg_buy_price_usd !== undefined ? `$${holderMetricsAvg.avg_buy_price_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—',
+                                    color: '#60a5fa'
+                                },
+                                {
+                                    label: 'Avg mint ratio',
+                                    value: holderMetricsAvg.mint_ratio !== undefined ? `${(holderMetricsAvg.mint_ratio * 100).toFixed(1)}%` : '—',
+                                    color: '#c084fc'
+                                },
+                            ].map(({ label, value, color }) => (
+                                <div key={label} className="rounded-xl px-3 py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+                                    <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>{label}</p>
+                                    <p className="text-xl font-bold" style={{ fontFamily: 'var(--font-heading)', color }}>{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Results table */}
@@ -260,6 +396,20 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                                 <th className="text-left py-2 px-2 cursor-pointer select-none" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('label')}>
                                     Label <SortIcon k="label" />
                                 </th>
+                                {/* Holder metrics columns - only shown when hasHolderMetrics is true.
+                                    Uses optional chaining to safely access potentially undefined values.
+                                    Displays "—" for missing values to indicate data unavailability.
+                                */}
+                                {hasHolderMetrics && (
+                                    <>
+                                        <th className="text-right py-2 px-2 hidden md:table-cell cursor-pointer select-none" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('holder_score')}>
+                                            Holder Score <SortIcon k="holder_score" />
+                                        </th>
+                                        <th className="text-left py-2 px-2 hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }}>
+                                            Holder Label
+                                        </th>
+                                    </>
+                                )}
                                 <th className="text-right py-2 px-2 cursor-pointer select-none hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.4)', fontWeight: 500 }} onClick={() => toggleSort('flip_count')}>
                                     Flips <SortIcon k="flip_count" />
                                 </th>
@@ -306,6 +456,35 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                                                 </span>
                                             )}
                                         </td>
+                                        {/* Holder metrics data cells - safe access with optional chaining.
+                                            - holder_score: displays numeric value with 1 decimal place, or "—" if undefined
+                                            - holder_label: displays badge with label text, or "—" if undefined
+                                            This pattern ensures no runtime errors when accessing optional fields.
+                                        */}
+                                        {hasHolderMetrics && (
+                                            <>
+                                                <td className="py-2 px-2 text-right hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.5)' }}>
+                                                    {r.holder_score !== undefined ? r.holder_score.toFixed(1) : '—'}
+                                                </td>
+                                                <td className="py-2 px-2 hidden md:table-cell">
+                                                    {r.holder_label ? (
+                                                        <span
+                                                            className="px-2 py-0.5 rounded-full text-xs"
+                                                            style={{
+                                                                background: 'rgba(96,165,250,0.15)',
+                                                                color: '#60a5fa',
+                                                                border: '1px solid rgba(96,165,250,0.25)',
+                                                                fontFamily: 'var(--font-body)',
+                                                            }}
+                                                        >
+                                                            {r.holder_label}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: 'rgba(242,242,242,0.3)' }}>—</span>
+                                                    )}
+                                                </td>
+                                            </>
+                                        )}
                                         <td className="py-2 px-2 text-right hidden md:table-cell" style={{ color: 'rgba(242,242,242,0.5)' }}>
                                             {r.flip_count}
                                         </td>
