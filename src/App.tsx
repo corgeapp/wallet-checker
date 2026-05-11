@@ -5,6 +5,7 @@ import { NetworkError } from './api/client';
 import { usePoller } from './hooks/usePoller';
 import { useQueueStatus } from './hooks/useQueueStatus';
 import { useCollectionScanner } from './hooks/useCollectionScanner';
+import { canMakeRequest, incrementRequestCount, getRemainingRequests } from './utils/rateLimit';
 import Header from './components/Header';
 import Nav from './components/Nav';
 import type { AppTab } from './components/Nav';
@@ -93,10 +94,24 @@ export default function App() {
     usePoller(jobId, handleTick, handlePollError);
 
     async function handleSubmit(address: string) {
+        // Check rate limit
+        if (!canMakeRequest(isAuthenticated)) {
+            setState({
+                status: 'error',
+                message: `Rate limit reached. You've used all 3 free requests. Please try again later or contact admin for unlimited access.`,
+                recoverable: false,
+            });
+            return;
+        }
+
         setState({ status: 'submitting' });
         setConnectivityWarning(false);
         try {
             const res = await submitWallet(address);
+
+            // Increment request count after successful submission
+            incrementRequestCount(isAuthenticated);
+
             if ('cached' in res && res.cached) {
                 setState({ status: 'done', result: res.data });
                 return;
@@ -306,7 +321,12 @@ export default function App() {
                                     )}
                                     <AnimatePresence mode="wait">
                                         {(state.status === 'idle' || state.status === 'submitting') && (
-                                            <InputForm key="input" onSubmit={handleSubmit} isLoading={state.status === 'submitting'} />
+                                            <InputForm
+                                                key="input"
+                                                onSubmit={handleSubmit}
+                                                isLoading={state.status === 'submitting'}
+                                                remainingRequests={getRemainingRequests(isAuthenticated)}
+                                            />
                                         )}
                                         {state.status === 'polling' && (
                                             <QueueCard key="queue" pollStatus={state.pollStatus} queuePosition={state.queuePosition} connectivityWarning={connectivityWarning} />

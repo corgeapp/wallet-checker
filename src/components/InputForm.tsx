@@ -3,7 +3,11 @@ import { motion } from 'framer-motion';
 import { validateWalletAddress } from '../utils/validation';
 import type { InputFormProps } from '../types';
 
-export default function InputForm({ onSubmit, isLoading, error }: InputFormProps) {
+interface ExtendedInputFormProps extends InputFormProps {
+    remainingRequests?: number | null;
+}
+
+export default function InputForm({ onSubmit, isLoading, error, remainingRequests }: ExtendedInputFormProps) {
     const [address, setAddress] = useState('');
     const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -92,6 +96,19 @@ export default function InputForm({ onSubmit, isLoading, error }: InputFormProps
                         style={{ color: 'var(--color-error)', fontFamily: 'var(--font-body)' }}
                     >
                         {displayError}
+                    </p>
+                )}
+                {remainingRequests !== null && remainingRequests !== undefined && (
+                    <p
+                        className="mt-2 text-xs"
+                        style={{
+                            color: remainingRequests === 0 ? '#f87171' : 'rgba(242,242,242,0.4)',
+                            fontFamily: 'var(--font-body)',
+                        }}
+                    >
+                        {remainingRequests > 0
+                            ? `${remainingRequests} free ${remainingRequests === 1 ? 'request' : 'requests'} remaining`
+                            : 'No free requests remaining'}
                     </p>
                 )}
             </form>
