@@ -69,7 +69,7 @@ export async function getQueueStatus(): Promise<QueueStatus> {
 
 // ─── Collection API ───────────────────────────────────────────────────────────
 
-import type { CollectionScanResponse, CollectionSessionResponse } from '../types';
+import type { CollectionScanResponse, CollectionSessionResponse, CollectionProgressResponse } from '../types';
 
 // Flexible body — accepts any of the formats the backend supports:
 // - { addresses: string[] }
@@ -120,6 +120,15 @@ export async function startCollectionScanCSV(
 
 export async function getCollectionSession(sessionId: string): Promise<CollectionSessionResponse> {
     return request<CollectionSessionResponse>(`/collection/session/${sessionId}`);
+}
+
+/**
+ * Get lightweight progress updates for a collection session.
+ * This endpoint returns only progress data without the full results array,
+ * making it much more efficient for polling during large scans.
+ */
+export async function getCollectionProgress(sessionId: string): Promise<CollectionProgressResponse> {
+    return request<CollectionProgressResponse>(`/collection/session/${sessionId}/progress`);
 }
 
 /**

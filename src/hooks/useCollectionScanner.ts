@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { startCollectionScan, startCollectionScanCSV, getCollectionSession, cancelCollectionSession } from '../api/client';
+import { startCollectionScan, startCollectionScanCSV, getCollectionSession, getCollectionProgress, cancelCollectionSession } from '../api/client';
 import { NetworkError, ApiError } from '../api/client';
 import type { CollectionScanState, CollectionWalletResult } from '../types';
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 5000; // Increased from 5000ms to 5000ms for lighter load
 const STORAGE_KEY_PREFIX = 'corge_scan_';
 
 function storageKey(sessionId: string) {
@@ -61,40 +61,54 @@ export function useCollectionScanner() {
 
     const poll = useCallback(async (sessionId: string) => {
         try {
-            const data = await getCollectionSession(sessionId);
-
-            // Merge new results with saved ones (backend may return partial)
-            const saved = loadFromStorage(sessionId) ?? [];
-            const merged = mergeResults(saved, data.results);
-            saveToStorage(sessionId, merged);
+            // Use lightweight progress endpoint for polling (no results array)
+            const data = await getCollectionProgress(sessionId);
 
             if (data.status === 'cancelled') {
                 stopPolling();
+                // Fetch full session data to get final results and failed addresses
+                const fullData = await getCollectionSession(sessionId);
+                const saved = loadFromStorage(sessionId) ?? [];
+                const merged = mergeResults(saved, fullData.results);
+                saveToStorage(sessionId, merged);
+
                 setState(prev => ({
                     ...prev,
-                    progress: data.progress,
-                    stats: data.stats,
+                    progress: fullData.progress,
+                    stats: fullData.stats,
                     results: merged,
-                    failedAddresses: data.failed ?? [],
+                    failedAddresses: fullData.failed ?? [],
                     phase: 'cancelled',
-                    error: data.cancelled?.reason ?? 'Session was cancelled',
+                    error: fullData.cancelled?.reason ?? 'Session was cancelled',
                 }));
                 return;
             }
 
+            // Update progress only (no results yet)
             setState(prev => ({
                 ...prev,
                 progress: data.progress,
-                stats: data.stats,
-                results: merged,
-                failedAddresses: data.failed ?? [],
                 stalled: data.stalled,
-                phase: data.status === 'done' ? 'done'
-                    : data.status === 'stalled' ? 'stalled'
-                        : 'scanning',
+                phase: data.status === 'stalled' ? 'stalled' : 'scanning',
             }));
 
-            if (data.status === 'done' || data.status === 'stalled') {
+            // When scan completes, fetch full results
+            if (data.status === 'done') {
+                stopPolling();
+                const fullData = await getCollectionSession(sessionId);
+                const saved = loadFromStorage(sessionId) ?? [];
+                const merged = mergeResults(saved, fullData.results);
+                saveToStorage(sessionId, merged);
+
+                setState(prev => ({
+                    ...prev,
+                    progress: fullData.progress,
+                    stats: fullData.stats,
+                    results: merged,
+                    failedAddresses: fullData.failed ?? [],
+                    phase: 'done',
+                }));
+            } else if (data.status === 'stalled') {
                 stopPolling();
             }
         } catch (err) {

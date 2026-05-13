@@ -188,6 +188,14 @@ export interface CollectionSessionResponse {
     failed?: Array<{ wallet: string; error: string }>;
 }
 
+export interface CollectionProgressResponse {
+    sessionId: string;
+    status: CollectionStatus;
+    progress: CollectionProgress;
+    stalled: CollectionStalled | null;
+    cancelled?: { reason: string };
+}
+
 export interface CollectionScanResponse {
     success: boolean;
     sessionId: string;
