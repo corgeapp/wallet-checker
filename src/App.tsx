@@ -374,6 +374,7 @@ export default function App() {
                                                     results={scanState.results}
                                                     stats={scanState.stats}
                                                     collectionName={scanState.collectionName}
+                                                    failedAddresses={scanState.failedAddresses}
                                                     onReset={resetScan}
                                                     onRescan={(zeroAddresses) => {
                                                         startScan(
@@ -407,6 +408,7 @@ export default function App() {
                                                         results={scanState.results}
                                                         stats={scanState.stats}
                                                         collectionName={`${scanState.collectionName || 'Collection'} (partial)`}
+                                                        failedAddresses={scanState.failedAddresses}
                                                         onReset={resetScan}
                                                     />
                                                 ) : (

@@ -9,6 +9,7 @@ interface Props {
     collectionName: string;
     onReset: () => void;
     onRescan?: (zeroAddresses: string[]) => void;
+    failedAddresses?: Array<{ wallet: string; error: string }>;
 }
 
 type SortKey = 'wallet_score' | 'flip_count' | 'confidence' | 'label' | 'holder_score';
@@ -40,7 +41,25 @@ function exportCSV(results: CollectionWalletResult[], name: string) {
     URL.revokeObjectURL(url);
 }
 
-export default function CollectionResults({ results, stats, collectionName, onReset, onRescan }: Props) {
+/**
+ * Export failed addresses to CSV format.
+ * 
+ * @param failedAddresses - Array of failed wallet addresses with error messages
+ * @param name - Collection name used for the filename
+ */
+function exportFailedCSV(failedAddresses: Array<{ wallet: string; error: string }>, name: string) {
+    const header = 'wallet,error';
+    const rows = failedAddresses.map(f => `${f.wallet},"${f.error.replace(/"/g, '""')}"`);
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name || 'collection'}_failed.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+export default function CollectionResults({ results, stats, collectionName, onReset, onRescan, failedAddresses }: Props) {
     const [sortKey, setSortKey] = useState<SortKey>('wallet_score');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -217,6 +236,21 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                         >
                             ↓ Export CSV
                         </button>
+                        {failedAddresses && failedAddresses.length > 0 && (
+                            <button
+                                onClick={() => exportFailedCSV(failedAddresses, collectionName)}
+                                className="text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5"
+                                style={{
+                                    background: 'rgba(248,113,113,0.12)',
+                                    border: '1px solid rgba(248,113,113,0.3)',
+                                    color: '#f87171',
+                                    fontFamily: 'var(--font-body)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                ⚠ Export {failedAddresses.length.toLocaleString()} failed
+                            </button>
+                        )}
                         <button
                             onClick={onReset}
                             className="text-xs px-3 py-2 rounded-lg transition-all"

@@ -185,6 +185,7 @@ export interface CollectionSessionResponse {
     cancelled?: { reason: string };
     stats: CollectionStats;
     results: CollectionWalletResult[];
+    failed?: Array<{ wallet: string; error: string }>;
 }
 
 export interface CollectionScanResponse {
@@ -202,6 +203,7 @@ export interface CollectionScanState {
     progress: CollectionProgress | null;
     stats: CollectionStats | null;
     results: CollectionWalletResult[];
+    failedAddresses: Array<{ wallet: string; error: string }>;
     stalled: CollectionStalled | null;
     error: string | null;
     totalSubmitted: number;

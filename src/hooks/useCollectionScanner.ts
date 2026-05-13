@@ -40,6 +40,7 @@ const INITIAL_STATE: CollectionScanState = {
     progress: null,
     stats: null,
     results: [],
+    failedAddresses: [],
     stalled: null,
     error: null,
     totalSubmitted: 0,
@@ -74,6 +75,7 @@ export function useCollectionScanner() {
                     progress: data.progress,
                     stats: data.stats,
                     results: merged,
+                    failedAddresses: data.failed ?? [],
                     phase: 'cancelled',
                     error: data.cancelled?.reason ?? 'Session was cancelled',
                 }));
@@ -85,6 +87,7 @@ export function useCollectionScanner() {
                 progress: data.progress,
                 stats: data.stats,
                 results: merged,
+                failedAddresses: data.failed ?? [],
                 stalled: data.stalled,
                 phase: data.status === 'done' ? 'done'
                     : data.status === 'stalled' ? 'stalled'
