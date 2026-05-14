@@ -224,16 +224,16 @@ export function getMintersCSVUrl(contract: string, chain: number, fields: Minter
 
 export interface HolderResult {
     address: string;
-    token_count: number;
+    nft_count: number;
 }
 
 export interface HoldersResponse {
     success: boolean;
     contract: string;
-    chain?: number;
+    chain_id?: number;
     total_holders: number;
-    total_tokens: number;
-    holders: HolderResult[];
+    total_nfts_held: number;
+    results: HolderResult[];
 }
 
 export async function getHolders(contract: string, chain: number = 1): Promise<HoldersResponse> {

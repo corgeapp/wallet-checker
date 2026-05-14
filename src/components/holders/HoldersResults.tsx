@@ -14,15 +14,15 @@ export default function HoldersResults({ data, contract, chain, onReset, onSendT
     const [page, setPage] = useState(0);
     const PAGE_SIZE = 50;
 
-    const totalPages = Math.ceil(data.holders.length / PAGE_SIZE);
+    const totalPages = Math.ceil(data.results.length / PAGE_SIZE);
     const paginatedHolders = useMemo(() => {
         const start = page * PAGE_SIZE;
-        return data.holders.slice(start, start + PAGE_SIZE);
-    }, [data.holders, page]);
+        return data.results.slice(start, start + PAGE_SIZE);
+    }, [data.results, page]);
 
     function exportCSV() {
-        const header = 'address,token_count';
-        const rows = data.holders.map(h => `${h.address},${h.token_count}`);
+        const header = 'address,nft_count';
+        const rows = data.results.map(h => `${h.address},${h.nft_count}`);
         const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -99,8 +99,8 @@ export default function HoldersResults({ data, contract, chain, onReset, onSendT
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {[
                     { label: 'Total Holders', value: data.total_holders.toLocaleString(), color: 'var(--color-corge-orange)' },
-                    { label: 'Total Tokens', value: data.total_tokens.toLocaleString(), color: 'var(--color-corge-offwhite)' },
-                    { label: 'Avg per Holder', value: (data.total_tokens / data.total_holders).toFixed(2), color: '#60a5fa' },
+                    { label: 'Total NFTs', value: data.total_nfts_held.toLocaleString(), color: 'var(--color-corge-offwhite)' },
+                    { label: 'Avg per Holder', value: (data.total_nfts_held / data.total_holders).toFixed(2), color: '#60a5fa' },
                 ].map(({ label, value, color }) => (
                     <div key={label} className="glass-card p-4 text-center">
                         <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>
@@ -123,7 +123,7 @@ export default function HoldersResults({ data, contract, chain, onReset, onSendT
                                     Address
                                 </th>
                                 <th className="text-right px-4 py-3 text-xs uppercase tracking-wide" style={{ color: 'rgba(242,242,242,0.4)' }}>
-                                    Token Count
+                                    NFT Count
                                 </th>
                             </tr>
                         </thead>
@@ -134,7 +134,7 @@ export default function HoldersResults({ data, contract, chain, onReset, onSendT
                                         {holder.address}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right font-semibold" style={{ color: 'var(--color-corge-orange)' }}>
-                                        {holder.token_count.toLocaleString()}
+                                        {holder.nft_count.toLocaleString()}
                                     </td>
                                 </tr>
                             ))}
@@ -146,7 +146,7 @@ export default function HoldersResults({ data, contract, chain, onReset, onSendT
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: 'var(--glass-border)' }}>
                         <p className="text-xs" style={{ color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)' }}>
-                            Page {page + 1} of {totalPages} · Showing {paginatedHolders.length} of {data.holders.length}
+                            Page {page + 1} of {totalPages} · Showing {paginatedHolders.length} of {data.results.length}
                         </p>
                         <div className="flex gap-2">
                             <button
