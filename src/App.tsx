@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { submitWallet, getMinters, cancelCollectionSessionBeacon, ApiError } from './api/client';
-import type { RateLimitInfo } from './api/client';
+import { submitWallet, getMinters, getHolders, cancelCollectionSessionBeacon, ApiError } from './api/client';
+import type { RateLimitInfo, HoldersResponse } from './api/client';
 import { NetworkError } from './api/client';
 import { usePoller } from './hooks/usePoller';
 import { useQueueStatus } from './hooks/useQueueStatus';
@@ -20,6 +20,8 @@ import CollectionProgress from './components/collection/CollectionProgress';
 import CollectionResults from './components/collection/CollectionResults';
 import MinterFetcher from './components/minters/MinterFetcher';
 import MintersResults from './components/minters/MintersResults';
+import HoldersFetcher from './components/holders/HoldersFetcher';
+import HoldersResults from './components/holders/HoldersResults';
 import ScanHistory from './components/history/ScanHistory';
 import type { AppState, JobStatusResponse, MintersResponse, MintersFields } from './types';
 
@@ -170,6 +172,45 @@ export default function App() {
         const collectionName = mintersContract
             ? `Minters of ${mintersContract.slice(0, 8)}...`
             : 'Minter scan';
+        setTab('collection');
+        setTimeout(() => {
+            startScan(data as unknown as Record<string, unknown>, collectionName);
+        }, 150);
+    }
+
+    // ── Holders fetcher ───────────────────────────────────────────────────────
+    const [holdersLoading, setHoldersLoading] = useState(false);
+    const [holdersError, setHoldersError] = useState<string | null>(null);
+    const [holdersData, setHoldersData] = useState<HoldersResponse | null>(null);
+    const [holdersContract, setHoldersContract] = useState('');
+    const [holdersChain, setHoldersChain] = useState(1);
+
+    async function handleFetchHolders(contract: string, chain: number) {
+        setHoldersLoading(true);
+        setHoldersError(null);
+        setHoldersData(null);
+        setHoldersContract(contract);
+        setHoldersChain(chain);
+        try {
+            const data = await getHolders(contract, chain);
+            setHoldersData(data);
+        } catch (err) {
+            setHoldersError(err instanceof Error ? err.message : 'Failed to fetch holders');
+        } finally {
+            setHoldersLoading(false);
+        }
+    }
+
+    function handleResetHolders() {
+        setHoldersData(null);
+        setHoldersError(null);
+    }
+
+    // "Send to Scanner" from holders
+    function handleSendHoldersToScanner(data: HoldersResponse) {
+        const collectionName = holdersContract
+            ? `Holders of ${holdersContract.slice(0, 8)}...`
+            : 'Holder scan';
         setTab('collection');
         setTimeout(() => {
             startScan(data as unknown as Record<string, unknown>, collectionName);
@@ -487,6 +528,32 @@ export default function App() {
                                                 fields={mintersFields}
                                                 onReset={handleResetMinters}
                                                 onSendToScanner={handleSendToScanner}
+                                            />
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+
+                            {/* ── Holders Fetcher ── */}
+                            {tab === 'holders' && isAuthenticated && (
+                                <div key="holders-tab" className="w-full flex flex-col gap-5">
+                                    <AnimatePresence mode="wait">
+                                        {!holdersData && (
+                                            <HoldersFetcher
+                                                key="fetcher"
+                                                onFetch={handleFetchHolders}
+                                                isLoading={holdersLoading}
+                                                error={holdersError}
+                                            />
+                                        )}
+                                        {holdersData && (
+                                            <HoldersResults
+                                                key="results"
+                                                data={holdersData}
+                                                contract={holdersContract}
+                                                chain={holdersChain}
+                                                onReset={handleResetHolders}
+                                                onSendToScanner={handleSendHoldersToScanner}
                                             />
                                         )}
                                     </AnimatePresence>

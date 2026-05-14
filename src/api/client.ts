@@ -220,6 +220,30 @@ export function getMintersCSVUrl(contract: string, chain: number, fields: Minter
     return `${BASE_URL}/collection/minters?${params.toString()}`;
 }
 
+// ─── Holders API ──────────────────────────────────────────────────────────────
+
+export interface HolderResult {
+    address: string;
+    token_count: number;
+}
+
+export interface HoldersResponse {
+    success: boolean;
+    contract: string;
+    chain?: number;
+    total_holders: number;
+    total_tokens: number;
+    holders: HolderResult[];
+}
+
+export async function getHolders(contract: string, chain: number = 1): Promise<HoldersResponse> {
+    const params = new URLSearchParams({
+        contract,
+        chain: String(chain),
+    });
+    return request<HoldersResponse>(`/collection/holders?${params.toString()}`);
+}
+
 // ─── First TX API ─────────────────────────────────────────────────────────────
 
 import type { FirstTxScanResponse, FirstTxSessionResponse } from '../types';
