@@ -1,15 +1,51 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { validateWalletAddress } from '../utils/validation';
 import type { InputFormProps } from '../types';
+import type { RateLimitInfo } from '../api/client';
 
 interface ExtendedInputFormProps extends InputFormProps {
-    remainingRequests?: number | null;
+    rateLimitInfo?: RateLimitInfo | null;
+    isAdmin?: boolean;
 }
 
-export default function InputForm({ onSubmit, isLoading, error, remainingRequests }: ExtendedInputFormProps) {
+function formatTimeRemaining(resetAt: string): string {
+    const now = Date.now();
+    const reset = new Date(resetAt).getTime();
+    const diff = reset - now;
+
+    if (diff <= 0) return 'Now';
+
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+
+    if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+}
+
+export default function InputForm({ onSubmit, isLoading, error, rateLimitInfo, isAdmin }: ExtendedInputFormProps) {
     const [address, setAddress] = useState('');
     const [validationError, setValidationError] = useState<string | null>(null);
+    const [timeRemaining, setTimeRemaining] = useState<string>('');
+
+    // Update timer every second
+    useEffect(() => {
+        if (!rateLimitInfo?.resetAt) {
+            setTimeRemaining('');
+            return;
+        }
+
+        const updateTimer = () => {
+            setTimeRemaining(formatTimeRemaining(rateLimitInfo.resetAt));
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+
+        return () => clearInterval(interval);
+    }, [rateLimitInfo]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -98,17 +134,27 @@ export default function InputForm({ onSubmit, isLoading, error, remainingRequest
                         {displayError}
                     </p>
                 )}
-                {remainingRequests !== null && remainingRequests !== undefined && (
-                    <p
-                        className="mt-2 text-xs"
-                        style={{
-                            color: remainingRequests === 0 ? '#f87171' : 'rgba(242,242,242,0.4)',
-                            fontFamily: 'var(--font-body)',
-                        }}
-                    >
-                        {remainingRequests > 0
-                            ? `${remainingRequests} free ${remainingRequests === 1 ? 'request' : 'requests'} remaining`
-                            : 'No free requests remaining'}
+                {!isAdmin && rateLimitInfo && (
+                    <div className="mt-2 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                        <p style={{ color: rateLimitInfo.remaining === 0 ? '#f87171' : 'rgba(242,242,242,0.5)' }}>
+                            {rateLimitInfo.remaining > 0 ? (
+                                <>
+                                    <span style={{ fontWeight: 600 }}>{rateLimitInfo.remaining}</span> of {rateLimitInfo.limit} requests remaining
+                                </>
+                            ) : (
+                                <>
+                                    <span style={{ color: '#f87171', fontWeight: 600 }}>Rate limit reached</span>
+                                    {timeRemaining && (
+                                        <> · Next request in <span style={{ fontWeight: 600 }}>{timeRemaining}</span></>
+                                    )}
+                                </>
+                            )}
+                        </p>
+                    </div>
+                )}
+                {isAdmin && (
+                    <p className="mt-2 text-xs" style={{ color: '#34d399', fontFamily: 'var(--font-body)' }}>
+                        ✓ Admin mode - Unlimited requests
                     </p>
                 )}
             </form>

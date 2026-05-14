@@ -1,5 +1,6 @@
 // src/api/client.ts
 import type { JobStatusResponse, QueueStatus, WalletResult } from '../types';
+import { getAuthHeaders } from '../utils/apiKey';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
@@ -7,11 +8,18 @@ export class ApiError extends Error {
     constructor(
         public readonly status: number,
         message: string,
-        public readonly isTransient: boolean = false
+        public readonly isTransient: boolean = false,
+        public readonly rateLimitInfo?: RateLimitInfo
     ) {
         super(message);
         this.name = 'ApiError';
     }
+}
+
+export interface RateLimitInfo {
+    remaining: number;
+    resetAt: string; // ISO timestamp
+    limit: number;
 }
 
 export class NetworkError extends Error {
@@ -25,7 +33,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
     try {
         response = await fetch(`${BASE_URL}${path}`, {
-            headers: { 'Content-Type': 'application/json', ...init?.headers },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders(),  // Auto-inject API key
+                ...init?.headers
+            },
             ...init,
         });
     } catch (err) {
@@ -35,13 +47,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (!response.ok) {
         const isTransient = response.status >= 500;
         let message = `Request failed with status ${response.status}`;
+        let rateLimitInfo: RateLimitInfo | undefined;
+
         try {
-            const body = await response.json() as { message?: string; error?: string };
+            const body = await response.json() as { message?: string; error?: string; rateLimit?: RateLimitInfo };
             message = body.message ?? body.error ?? message;
+            rateLimitInfo = body.rateLimit;
         } catch {
             // ignore JSON parse errors
         }
-        throw new ApiError(response.status, message, isTransient);
+
+        // Extract rate limit info from headers if not in body
+        if (!rateLimitInfo && response.status === 429) {
+            const remaining = response.headers.get('X-RateLimit-Remaining');
+            const resetAt = response.headers.get('X-RateLimit-Reset');
+            const limit = response.headers.get('X-RateLimit-Limit');
+
+            if (remaining !== null && resetAt !== null && limit !== null) {
+                rateLimitInfo = {
+                    remaining: parseInt(remaining, 10),
+                    resetAt,
+                    limit: parseInt(limit, 10)
+                };
+            }
+        }
+
+        throw new ApiError(response.status, message, isTransient, rateLimitInfo);
     }
 
     return response.json() as Promise<T>;

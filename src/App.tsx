@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { submitWallet, getMinters, cancelCollectionSessionBeacon } from './api/client';
+import { submitWallet, getMinters, cancelCollectionSessionBeacon, ApiError } from './api/client';
+import type { RateLimitInfo } from './api/client';
 import { NetworkError } from './api/client';
 import { usePoller } from './hooks/usePoller';
 import { useQueueStatus } from './hooks/useQueueStatus';
 import { useCollectionScanner } from './hooks/useCollectionScanner';
-import { canMakeRequest, incrementRequestCount, getRemainingRequests } from './utils/rateLimit';
+import { hasApiKey } from './utils/apiKey';
 import Header from './components/Header';
 import Nav from './components/Nav';
 import type { AppTab } from './components/Nav';
@@ -31,6 +32,7 @@ export default function App() {
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [passwordError, setPasswordError] = useState('');
+    const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
     // Check URL for /pass route
     useEffect(() => {
@@ -94,23 +96,12 @@ export default function App() {
     usePoller(jobId, handleTick, handlePollError);
 
     async function handleSubmit(address: string) {
-        // Check rate limit
-        if (!canMakeRequest(isAuthenticated)) {
-            setState({
-                status: 'error',
-                message: `Rate limit reached. You've used all 3 free requests. Please try again later or contact admin for unlimited access.`,
-                recoverable: false,
-            });
-            return;
-        }
-
         setState({ status: 'submitting' });
         setConnectivityWarning(false);
+        setRateLimitInfo(null);
+
         try {
             const res = await submitWallet(address);
-
-            // Increment request count after successful submission
-            incrementRequestCount(isAuthenticated);
 
             if ('cached' in res && res.cached) {
                 setState({ status: 'done', result: res.data });
@@ -118,11 +109,21 @@ export default function App() {
             }
             setState({ status: 'polling', jobId: res.jobId, pollStatus: 'queued', queuePosition: res.position });
         } catch (err) {
-            const message =
-                err instanceof NetworkError
-                    ? 'Service unavailable. Please check your connection and try again.'
-                    : err instanceof Error ? err.message : 'An unexpected error occurred.';
-            setState({ status: 'error', message, recoverable: true });
+            // Handle rate limit errors from backend
+            if (err instanceof ApiError && err.status === 429 && err.rateLimitInfo) {
+                setRateLimitInfo(err.rateLimitInfo);
+                setState({
+                    status: 'error',
+                    message: err.message,
+                    recoverable: false,
+                });
+            } else {
+                const message =
+                    err instanceof NetworkError
+                        ? 'Service unavailable. Please check your connection and try again.'
+                        : err instanceof Error ? err.message : 'An unexpected error occurred.';
+                setState({ status: 'error', message, recoverable: true });
+            }
         }
     }
 
@@ -304,7 +305,7 @@ export default function App() {
 
             <div className="w-full max-w-3xl px-4 flex flex-col min-h-screen">
                 <div className="flex-1 flex flex-col">
-                    <Header />
+                    <Header isAuthenticated={isAuthenticated} />
                     {isAuthenticated && <Nav active={tab} onChange={setTab} />}
 
                     <main className="w-full pb-16">
@@ -325,7 +326,8 @@ export default function App() {
                                                 key="input"
                                                 onSubmit={handleSubmit}
                                                 isLoading={state.status === 'submitting'}
-                                                remainingRequests={getRemainingRequests(isAuthenticated)}
+                                                rateLimitInfo={rateLimitInfo}
+                                                isAdmin={hasApiKey()}
                                             />
                                         )}
                                         {state.status === 'polling' && (
