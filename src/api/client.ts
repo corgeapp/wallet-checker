@@ -50,9 +50,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         let rateLimitInfo: RateLimitInfo | undefined;
 
         try {
-            const body = await response.json() as { message?: string; error?: string; rateLimit?: RateLimitInfo };
+            const body = await response.json() as {
+                message?: string;
+                error?: string;
+                rateLimit?: RateLimitInfo;
+                remaining?: number;
+                resetAt?: string;
+                limit?: number;
+            };
             message = body.message ?? body.error ?? message;
             rateLimitInfo = body.rateLimit;
+
+            if (!rateLimitInfo && response.status === 429) {
+                const limit = body.limit ?? Number(response.headers.get('X-RateLimit-Limit') ?? 3);
+                if (typeof body.remaining === 'number' && body.resetAt) {
+                    rateLimitInfo = {
+                        remaining: body.remaining,
+                        resetAt: body.resetAt,
+                        limit,
+                    };
+                }
+            }
         } catch {
             // ignore JSON parse errors
         }
