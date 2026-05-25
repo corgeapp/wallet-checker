@@ -41,14 +41,24 @@ describe('ResultCard', () => {
         expect(screen.getByTestId('result-card')).toBeInTheDocument();
     });
 
-    it('prints the score card when the print button is clicked', async () => {
-        const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    it('opens a square render preview when the render button is clicked', async () => {
         render(<ResultCard result={baseResult} onReset={vi.fn()} />);
 
-        await userEvent.click(screen.getByTestId('print-score-button'));
+        await userEvent.click(screen.getByTestId('render-score-button'));
 
-        expect(print).toHaveBeenCalledOnce();
-        print.mockRestore();
+        expect(screen.getByTestId('score-render-modal')).toBeInTheDocument();
+        expect(screen.getByTestId('score-render-card')).toHaveClass('aspect-square');
+        expect(screen.getByTestId('score-render-card')).toHaveTextContent('7.5');
+        expect(screen.getByTestId('score-render-card')).toHaveTextContent('Solid');
+    });
+
+    it('closes the square render preview', async () => {
+        render(<ResultCard result={baseResult} onReset={vi.fn()} />);
+
+        await userEvent.click(screen.getByTestId('render-score-button'));
+        await userEvent.click(screen.getByTestId('close-render-button'));
+
+        expect(screen.queryByTestId('score-render-modal')).not.toBeInTheDocument();
     });
 
     it('does not render the sweeper section', () => {
