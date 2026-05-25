@@ -3,10 +3,65 @@ import { motion } from 'framer-motion';
 import { classifyScore, SCORE_CATEGORY_STYLES } from '../utils/score';
 import type { ResultCardProps } from '../types';
 
+function getStyleColor(colorClass: string) {
+    return colorClass.replace('text-[', '').replace(']', '');
+}
+
+function escapeSvgText(value: string) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function downloadScoreRender(score: string, label: string, emoji: string, color: string) {
+    if (typeof URL.createObjectURL !== 'function') return;
+
+    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'score';
+    const svg = `
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="20%" r="48%">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#151515"/>
+      <stop offset="100%" stop-color="#242424"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" rx="56" fill="url(#bg)"/>
+  <rect width="1080" height="1080" rx="56" fill="url(#glow)"/>
+  <rect x="28" y="28" width="1024" height="1024" rx="44" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+  <text x="540" y="322" text-anchor="middle" dominant-baseline="middle" font-size="132">${escapeSvgText(emoji)}</text>
+  <text x="540" y="526" text-anchor="middle" dominant-baseline="middle" font-family="Arial Black, Arial, sans-serif" font-size="184" font-weight="900" fill="${color}">${escapeSvgText(score)}</text>
+  <text x="540" y="644" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="8" fill="rgba(242,242,242,0.58)">WALLET SCORE</text>
+  <rect x="340" y="726" width="400" height="96" rx="48" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-opacity="0.34" stroke-width="2"/>
+  <text x="540" y="776" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="46" font-weight="800" fill="${color}">${escapeSvgText(label)}</text>
+</svg>`.trim();
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `wallet-score-${safeLabel}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 export default function ResultCard({ result, onReset }: ResultCardProps) {
     const [isRenderOpen, setIsRenderOpen] = useState(false);
     const category = classifyScore(result.wallet_score);
     const style = SCORE_CATEGORY_STYLES[category];
+    const scoreColor = getStyleColor(style.colorClass);
+    const scoreText = result.wallet_score.toFixed(1);
+    const openRender = () => {
+        setIsRenderOpen(true);
+        downloadScoreRender(scoreText, result.label, style.emoji, scoreColor);
+    };
 
     return (
         <motion.div
@@ -23,10 +78,10 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
                 <div>
                     <p
                         className="text-6xl font-black leading-none"
-                        style={{ fontFamily: 'var(--font-heading)', color: style.colorClass.replace('text-[', '').replace(']', '') }}
+                        style={{ fontFamily: 'var(--font-heading)', color: scoreColor }}
                         data-testid="wallet-score"
                     >
-                        {result.wallet_score.toFixed(1)}
+                        {scoreText}
                     </p>
                     <p
                         className="text-xs uppercase tracking-widest mt-1"
@@ -45,10 +100,10 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
                     </span>
                     <button
                         type="button"
-                        onClick={() => setIsRenderOpen(true)}
+                        onClick={openRender}
                         data-testid="render-score-button"
-                        aria-label="Render score card"
-                        title="Render score card"
+                        aria-label="Render and download score card"
+                        title="Render and download score card"
                         className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition-all"
                         style={{
                             background: 'rgba(255,255,255,0.06)',
@@ -141,9 +196,9 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
                         <div
                             className="aspect-square w-full overflow-hidden rounded-2xl p-8"
                             style={{
-                                background: `radial-gradient(circle at 50% 20%, ${style.colorClass.replace('text-[', '').replace(']', '')}33, transparent 42%), linear-gradient(145deg, #151515 0%, #242424 100%)`,
+                                background: `radial-gradient(circle at 50% 20%, ${scoreColor}33, transparent 42%), linear-gradient(145deg, #151515 0%, #242424 100%)`,
                                 border: '1px solid rgba(255,255,255,0.12)',
-                                boxShadow: `0 24px 80px ${style.colorClass.replace('text-[', '').replace(']', '')}26`,
+                                boxShadow: `0 24px 80px ${scoreColor}26`,
                             }}
                             data-testid="score-render-card"
                         >
@@ -152,9 +207,9 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
                                 <div>
                                     <p
                                         className="text-7xl font-black leading-none"
-                                        style={{ fontFamily: 'var(--font-heading)', color: style.colorClass.replace('text-[', '').replace(']', '') }}
+                                        style={{ fontFamily: 'var(--font-heading)', color: scoreColor }}
                                     >
-                                        {result.wallet_score.toFixed(1)}
+                                        {scoreText}
                                     </p>
                                     <p
                                         className="mt-2 text-sm uppercase tracking-widest"

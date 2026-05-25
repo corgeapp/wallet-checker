@@ -41,7 +41,12 @@ describe('ResultCard', () => {
         expect(screen.getByTestId('result-card')).toBeInTheDocument();
     });
 
-    it('opens a square render preview when the render button is clicked', async () => {
+    it('opens and downloads a square render preview when the render button is clicked', async () => {
+        const createObjectURL = vi.fn(() => 'blob:score-render');
+        const revokeObjectURL = vi.fn();
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+        vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+
         render(<ResultCard result={baseResult} onReset={vi.fn()} />);
 
         await userEvent.click(screen.getByTestId('render-score-button'));
@@ -50,6 +55,12 @@ describe('ResultCard', () => {
         expect(screen.getByTestId('score-render-card')).toHaveClass('aspect-square');
         expect(screen.getByTestId('score-render-card')).toHaveTextContent('7.5');
         expect(screen.getByTestId('score-render-card')).toHaveTextContent('Solid');
+        expect(createObjectURL).toHaveBeenCalledOnce();
+        expect(click).toHaveBeenCalledOnce();
+        expect(revokeObjectURL).toHaveBeenCalledWith('blob:score-render');
+
+        click.mockRestore();
+        vi.unstubAllGlobals();
     });
 
     it('closes the square render preview', async () => {
