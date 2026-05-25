@@ -88,3 +88,28 @@ html, body {
 .pulse-processing {
   animation: pulse-ring 1.5s ease-in-out infinite;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-score-card,
+  .print-score-card * {
+    visibility: visible;
+  }
+
+  .print-score-card {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    background: #fff;
+    border: 0;
+    box-shadow: none;
+    color: #111;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+}

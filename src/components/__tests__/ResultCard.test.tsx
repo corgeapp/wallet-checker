@@ -24,9 +24,9 @@ describe('ResultCard', () => {
         expect(screen.getByTestId('wallet-score')).toHaveTextContent('7.5');
     });
 
-    it('renders wallet address', () => {
+    it('hides the wallet address block', () => {
         render(<ResultCard result={baseResult} onReset={vi.fn()} />);
-        expect(screen.getByTestId('wallet-address')).toHaveTextContent(baseResult.address);
+        expect(screen.queryByText(baseResult.address)).not.toBeInTheDocument();
     });
 
     it('calls onReset when reset button is clicked', async () => {
@@ -40,12 +40,26 @@ describe('ResultCard', () => {
         render(<ResultCard result={baseResult} onReset={vi.fn()} />);
         expect(screen.getByTestId('result-card')).toBeInTheDocument();
     });
+
+    it('prints the score card when the print button is clicked', async () => {
+        const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+        render(<ResultCard result={baseResult} onReset={vi.fn()} />);
+
+        await userEvent.click(screen.getByTestId('print-score-button'));
+
+        expect(print).toHaveBeenCalledOnce();
+        print.mockRestore();
+    });
+
+    it('does not render the sweeper section', () => {
+        render(<ResultCard result={{ ...baseResult, is_sweeper: true }} onReset={vi.fn()} />);
+        expect(screen.queryByText(/Sweeper/i)).not.toBeInTheDocument();
+        expect(screen.queryByTestId('field-is_sweeper')).not.toBeInTheDocument();
+    });
 });
 
-// Property 8: ResultCard renders all fields from done payload
-// Feature: jeet-checker-frontend, Property 8
-describe('Property 8: ResultCard renders all extra fields from payload', () => {
-    it('renders every extra field key present in the result', () => {
+describe('ResultCard payload handling', () => {
+    it('does not render arbitrary extra fields from the result payload', () => {
         // Use safe identifier-like keys to avoid data-testid selector edge cases
         const safeKey = fc.stringMatching(/^[a-z][a-z0-9_]{0,18}$/)
             .filter(k => !['address', 'wallet_score', 'label'].includes(k));
@@ -64,7 +78,7 @@ describe('Property 8: ResultCard renders all extra fields from payload', () => {
                     };
                     const { unmount } = render(<ResultCard result={result} onReset={vi.fn()} />);
                     for (const key of Object.keys(extraFields)) {
-                        expect(screen.getByTestId(`field-${key}`)).toBeInTheDocument();
+                        expect(screen.queryByTestId(`field-${key}`)).not.toBeInTheDocument();
                     }
                     unmount();
                 }

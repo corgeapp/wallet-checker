@@ -5,7 +5,9 @@ import type { ResultCardProps } from '../types';
 export default function ResultCard({ result, onReset }: ResultCardProps) {
     const category = classifyScore(result.wallet_score);
     const style = SCORE_CATEGORY_STYLES[category];
-    const isSweeper = result.is_sweeper as boolean | undefined;
+    const handlePrint = () => {
+        window.print();
+    };
 
     return (
         <motion.div
@@ -14,7 +16,7 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -24 }}
             transition={{ duration: 0.45, ease: 'easeOut' }}
-            className={`glass-card w-full p-6 md:p-8 flex flex-col gap-6 ${style.glowClass}`}
+            className={`glass-card print-score-card w-full p-6 md:p-8 flex flex-col gap-6 ${style.glowClass}`}
         >
             {/* Score */}
             <div className="flex flex-col items-center gap-3 text-center">
@@ -34,52 +36,52 @@ export default function ResultCard({ result, onReset }: ResultCardProps) {
                         Wallet Score
                     </p>
                 </div>
-                <span
-                    data-testid="score-label"
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${style.badgeClass}`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                >
-                    {result.label}
-                </span>
-            </div>
-
-            {/* is_sweeper pill */}
-            {isSweeper == true && (
-                <div className="flex justify-center">
+                <div className="flex items-center justify-center gap-2">
                     <span
-                        data-testid="field-is_sweeper"
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold"
+                        data-testid="score-label"
+                        className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-lg font-bold ${style.badgeClass}`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                        {result.label}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={handlePrint}
+                        data-testid="print-score-button"
+                        aria-label="Print score and label"
+                        title="Print score and label"
+                        className="print-hidden inline-flex h-10 w-10 items-center justify-center rounded-lg transition-all"
                         style={{
-                            background: isSweeper ? 'rgba(248,113,113,0.12)' : 'rgba(52,211,153,0.12)',
-                            border: `1px solid ${isSweeper ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}`,
-                            color: isSweeper ? '#f87171' : '#34d399',
-                            fontFamily: 'var(--font-body)',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--glass-border)',
+                            color: 'rgba(242,242,242,0.75)',
+                            cursor: 'pointer',
                         }}
                     >
-                        {isSweeper ? '🧹 Sweeper' : 'Not a sweeper'}
-                    </span>
+                        <svg
+                            aria-hidden="true"
+                            width="19"
+                            height="19"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M6 9V2h12v7" />
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                            <path d="M6 14h12v8H6z" />
+                        </svg>
+                    </button>
                 </div>
-            )}
-
-            {/* Address */}
-            <div
-                className="rounded-lg px-4 py-3 text-xs break-all text-[black] font-medium"
-                style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid var(--glass-border)',
-                    color: 'rgba(242,242,242,0.4)',
-                    fontFamily: 'monospace',
-                }}
-                data-testid="wallet-address"
-            >
-                {result.address}
             </div>
 
             {/* Reset */}
             <button
                 onClick={onReset}
                 data-testid="reset-button"
-                className="w-full rounded-lg py-3 text-sm font-semibold transition-all"
+                className="print-hidden w-full rounded-lg py-3 text-sm font-semibold transition-all"
                 style={{
                     background: 'transparent',
                     border: '1px solid var(--glass-border)',
