@@ -112,7 +112,7 @@ export default function App() {
             setState({ status: 'polling', jobId: res.jobId, pollStatus: 'queued', queuePosition: res.position });
         } catch (err) {
             // Handle rate limit errors from backend
-            if (err instanceof ApiError && err.status === 429 && err.rateLimitInfo) {
+            if (err instanceof ApiError && err.status === 429 && err.rateLimitInfo && !hasApiKey()) {
                 setRateLimitInfo(err.rateLimitInfo);
                 setState({
                     status: 'error',

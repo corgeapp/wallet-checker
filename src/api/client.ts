@@ -4,6 +4,20 @@ import { getAuthHeaders } from '../utils/apiKey';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
+function buildHeaders(headers?: HeadersInit, includeJson = true): Headers {
+    const merged = new Headers(headers);
+
+    if (includeJson && !merged.has('Content-Type')) {
+        merged.set('Content-Type', 'application/json');
+    }
+
+    for (const [key, value] of Object.entries(getAuthHeaders())) {
+        merged.set(key, value);
+    }
+
+    return merged;
+}
+
 export class ApiError extends Error {
     constructor(
         public readonly status: number,
@@ -33,12 +47,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
     try {
         response = await fetch(`${BASE_URL}${path}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders(),  // Auto-inject API key
-                ...init?.headers
-            },
             ...init,
+            headers: buildHeaders(init?.headers),
         });
     } catch (err) {
         throw new NetworkError(err instanceof Error ? err.message : 'Network request failed');
@@ -149,7 +159,8 @@ export async function startCollectionScanCSV(
         response = await fetch(`${BASE_URL}/collection/scan/csv`, {
             method: 'POST',
             body: formData,
-            // No Content-Type header — browser sets it with boundary automatically
+            headers: buildHeaders(undefined, false),
+            // No Content-Type header - browser sets it with boundary automatically
         });
     } catch (err) {
         throw new NetworkError(err instanceof Error ? err.message : 'Network request failed');
@@ -190,6 +201,7 @@ export async function cancelCollectionSession(sessionId: string): Promise<void> 
         await fetch(`${BASE_URL}/collection/session/${sessionId}`, {
             method: 'DELETE',
             keepalive: true,
+            headers: buildHeaders(undefined, false),
         });
     } catch {
         // Best-effort — ignore errors (page may be unloading)
@@ -205,7 +217,7 @@ export function cancelCollectionSessionBeacon(sessionId: string): void {
     const sent = navigator.sendBeacon(url, JSON.stringify({ _method: 'DELETE' }));
     if (!sent) {
         // sendBeacon failed (e.g. data too large) — fall back to keepalive fetch
-        fetch(url, { method: 'DELETE', keepalive: true }).catch(() => undefined);
+        fetch(url, { method: 'DELETE', keepalive: true, headers: buildHeaders(undefined, false) }).catch(() => undefined);
     }
 }
 
