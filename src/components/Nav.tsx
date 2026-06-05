@@ -1,4 +1,4 @@
-export type AppTab = 'wallet' | 'collection' | 'minters' | 'holders' | 'history';
+export type AppTab = 'wallet' | 'demo' | 'collection' | 'minters' | 'holders' | 'history';
 
 interface Props {
     active: AppTab;
@@ -7,6 +7,7 @@ interface Props {
 
 const TABS: { id: AppTab; label: string }[] = [
     { id: 'wallet', label: 'Wallet Checker' },
+    { id: 'demo', label: 'Demo Cards' },
     { id: 'collection', label: 'Collection Scanner' },
     { id: 'minters', label: 'Minter Fetcher' },
     { id: 'holders', label: 'Holders Fetcher' },

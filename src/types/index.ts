@@ -1,6 +1,6 @@
 // src/types/index.ts
 
-export type ScoreCategory = 'diamond' | 'holder' | 'neutral' | 'weak' | 'jeet';
+export type ScoreCategory = 'diamond' | 'chad' | 'solid' | 'normal' | 'flipper' | 'paper' | 'jeet';
 
 export interface WalletResult {
     address: string;

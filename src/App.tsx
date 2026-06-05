@@ -13,6 +13,7 @@ import type { AppTab } from './components/Nav';
 import InputForm from './components/InputForm';
 import QueueCard from './components/QueueCard';
 import ResultCard from './components/ResultCard';
+import DemoCardGenerator from './components/DemoCardGenerator';
 import ErrorDisplay from './components/ErrorDisplay';
 import QueueStatusBanner from './components/QueueStatusBanner';
 import CollectionUpload from './components/collection/CollectionUpload';
@@ -384,7 +385,14 @@ export default function App() {
                                 </div>
                             )}
 
-                            {/* ── Collection Scanner ── */}
+                            {/* Demo Card Generator */}
+                            {tab === 'demo' && isAuthenticated && (
+                                <div key="demo-tab" className="w-full">
+                                    <DemoCardGenerator />
+                                </div>
+                            )}
+
+                            {/* Collection Scanner */}
                             {tab === 'collection' && isAuthenticated && (
                                 <div key="collection-tab" className="w-full flex flex-col gap-5">
                                     <AnimatePresence mode="wait">
