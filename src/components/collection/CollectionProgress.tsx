@@ -100,7 +100,7 @@ export default function CollectionProgress({ state }: Props) {
                     </div>
                     {progress.failed > 0 && (
                         <p className="text-xs mt-1" style={{ color: '#f87171', fontFamily: 'var(--font-body)' }}>
-                            {progress.failed} failed
+                            {progress.failed} failed. Successful wallets are kept; failed wallets can be retried after the scan.
                         </p>
                     )}
                 </div>

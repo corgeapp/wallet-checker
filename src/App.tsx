@@ -29,6 +29,29 @@ import type { AppState, JobStatusResponse, MintersResponse, MintersFields } from
 const QUEUE_STATUS_ENABLED = import.meta.env.VITE_QUEUE_STATUS_ENABLED === 'true';
 const ADMIN_PASSWORD = 'corge9090';
 
+function getFriendlyWalletError(err: unknown) {
+    if (err instanceof NetworkError) {
+        return 'Service unavailable. Please check your connection and try again.';
+    }
+
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+    const lower = message.toLowerCase();
+    if (
+        lower.includes('timeout') ||
+        lower.includes('timed out') ||
+        lower.includes('rate limit') ||
+        lower.includes('econnreset') ||
+        lower.includes('etimedout') ||
+        lower.includes('502') ||
+        lower.includes('503') ||
+        lower.includes('504')
+    ) {
+        return 'The checker could not finish this wallet after temporary API issues. Try again in a moment.';
+    }
+
+    return message;
+}
+
 export default function App() {
     const [tab, setTab] = useState<AppTab>('wallet');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -121,11 +144,7 @@ export default function App() {
                     recoverable: false,
                 });
             } else {
-                const message =
-                    err instanceof NetworkError
-                        ? 'Service unavailable. Please check your connection and try again.'
-                        : err instanceof Error ? err.message : 'An unexpected error occurred.';
-                setState({ status: 'error', message, recoverable: true });
+                setState({ status: 'error', message: getFriendlyWalletError(err), recoverable: true });
             }
         }
     }
@@ -434,6 +453,13 @@ export default function App() {
                                                             scanState.results
                                                         );
                                                     }}
+                                                    onRetryFailed={(failedAddresses) => {
+                                                        startScan(
+                                                            { addresses: failedAddresses },
+                                                            `${scanState.collectionName} (failed retry)`,
+                                                            scanState.results
+                                                        );
+                                                    }}
                                                 />
                                             </div>
                                         )}
@@ -461,6 +487,13 @@ export default function App() {
                                                         collectionName={`${scanState.collectionName || 'Collection'} (partial)`}
                                                         failedAddresses={scanState.failedAddresses}
                                                         onReset={resetScan}
+                                                        onRetryFailed={(failedAddresses) => {
+                                                            startScan(
+                                                                { addresses: failedAddresses },
+                                                                `${scanState.collectionName || 'Collection'} (failed retry)`,
+                                                                scanState.results
+                                                            );
+                                                        }}
                                                     />
                                                 ) : (
                                                     /* No stats yet — show a minimal export-only panel */

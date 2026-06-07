@@ -21,6 +21,12 @@ describe('QueueCard', () => {
         render(<QueueCard pollStatus="processing" />);
         expect(screen.getByTestId('processing-indicator')).toBeInTheDocument();
         expect(screen.queryByTestId('queue-position')).not.toBeInTheDocument();
+        expect(screen.getByText(/backend retries a temporary timeout/i)).toBeInTheDocument();
+    });
+
+    it('explains server-side retries while queued', () => {
+        render(<QueueCard pollStatus="queued" queuePosition={3} />);
+        expect(screen.getByText(/temporary failures are retried server-side/i)).toBeInTheDocument();
     });
 
     it('shows connectivity warning when connectivityWarning is true', () => {

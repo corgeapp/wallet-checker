@@ -9,6 +9,7 @@ interface Props {
     collectionName: string;
     onReset: () => void;
     onRescan?: (zeroAddresses: string[]) => void;
+    onRetryFailed?: (failedAddresses: string[]) => void;
     failedAddresses?: Array<{ wallet: string; error: string }>;
 }
 
@@ -59,7 +60,7 @@ function exportFailedCSV(failedAddresses: Array<{ wallet: string; error: string 
     URL.revokeObjectURL(url);
 }
 
-export default function CollectionResults({ results, stats, collectionName, onReset, onRescan, failedAddresses }: Props) {
+export default function CollectionResults({ results, stats, collectionName, onReset, onRescan, onRetryFailed, failedAddresses }: Props) {
     const [sortKey, setSortKey] = useState<SortKey>('wallet_score');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -74,6 +75,8 @@ export default function CollectionResults({ results, stats, collectionName, onRe
     const zeroScoreCount = useMemo(() =>
         results.filter(r => r.wallet_score === 0).length,
         [results]);
+
+    const failedCount = failedAddresses?.length ?? 0;
 
     const labels = useMemo(() => {
         const s = new Set(
@@ -237,19 +240,38 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                             ↓ Export CSV
                         </button>
                         {failedAddresses && failedAddresses.length > 0 && (
-                            <button
-                                onClick={() => exportFailedCSV(failedAddresses, collectionName)}
-                                className="text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5"
-                                style={{
-                                    background: 'rgba(248,113,113,0.12)',
-                                    border: '1px solid rgba(248,113,113,0.3)',
-                                    color: '#f87171',
-                                    fontFamily: 'var(--font-body)',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                ⚠ Export {failedAddresses.length.toLocaleString()} failed
-                            </button>
+                            <>
+                                {onRetryFailed && (
+                                    <button
+                                        onClick={() => onRetryFailed(failedAddresses.map(f => f.wallet))}
+                                        data-testid="retry-failed-wallets-button"
+                                        className="text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5"
+                                        style={{
+                                            background: 'rgba(255,90,31,0.12)',
+                                            border: '1px solid rgba(255,90,31,0.3)',
+                                            color: 'var(--color-corge-orange)',
+                                            fontFamily: 'var(--font-body)',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Retry {failedAddresses.length.toLocaleString()} failed
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => exportFailedCSV(failedAddresses, collectionName)}
+                                    data-testid="export-failed-wallets-button"
+                                    className="text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5"
+                                    style={{
+                                        background: 'rgba(248,113,113,0.12)',
+                                        border: '1px solid rgba(248,113,113,0.3)',
+                                        color: '#f87171',
+                                        fontFamily: 'var(--font-body)',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    Export {failedAddresses.length.toLocaleString()} failed
+                                </button>
+                            </>
                         )}
                         <button
                             onClick={onReset}
@@ -272,7 +294,11 @@ export default function CollectionResults({ results, stats, collectionName, onRe
                         { label: 'Wallets scored', value: stats.total.toLocaleString(), color: 'var(--color-corge-orange)' },
                         { label: 'Avg score', value: stats.avg_score.toFixed(2), color: 'var(--color-corge-offwhite)' },
                         { label: 'Sweepers', value: stats.sweepers.toLocaleString(), color: '#f87171' },
-                        { label: 'New wallets', value: stats.new_wallets.toLocaleString(), color: '#a3a3a3' },
+                        {
+                            label: failedCount > 0 ? 'Failed' : 'New wallets',
+                            value: failedCount > 0 ? failedCount.toLocaleString() : stats.new_wallets.toLocaleString(),
+                            color: failedCount > 0 ? '#f87171' : '#a3a3a3'
+                        },
                     ].map(({ label, value, color }) => (
                         <div key={label} className="rounded-xl px-3 py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
                             <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}>{label}</p>

@@ -6,6 +6,7 @@ const PROCESSING_MESSAGES = [
     'Scanning on-chain activity...',
     'Checking transaction history...',
     'Calculating reputation score...',
+    'Retrying temporary API failures when needed...',
     'Analysing wallet behaviour...',
     'Almost there...',
 ];
@@ -67,7 +68,7 @@ export default function QueueCard({ pollStatus, queuePosition, connectivityWarni
                         </motion.p>
                     </div>
                     <p className="text-sm" style={{ color: 'rgba(242,242,242,0.6)', fontFamily: 'var(--font-body)' }}>
-                        Your wallet is queued for analysis
+                        Your wallet is queued for analysis. Temporary failures are retried server-side.
                     </p>
                 </>
             ) : (
@@ -92,6 +93,9 @@ export default function QueueCard({ pollStatus, queuePosition, connectivityWarni
                             {PROCESSING_MESSAGES[msgIndex]}
                         </motion.p>
                     </AnimatePresence>
+                    <p className="text-xs" style={{ color: 'rgba(242,242,242,0.36)', fontFamily: 'var(--font-body)' }}>
+                        This can take longer if the backend retries a temporary timeout.
+                    </p>
                 </div>
             )}
 
