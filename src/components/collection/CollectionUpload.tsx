@@ -8,6 +8,7 @@ const MAX_ADDRESSES = 4000;
 interface Props {
     onStartFromFile: (file: File, collectionName: string, partialResults?: CollectionWalletResult[]) => void;
     onStartFromAddresses: (body: Record<string, unknown>, collectionName: string, partialResults?: CollectionWalletResult[]) => void;
+    onRestoreSession: (sessionId: string) => void;
     isLoading: boolean;
 }
 
@@ -60,8 +61,40 @@ function parsePartialCSV(raw: string): CollectionWalletResult[] {
         is_sweeper: header.indexOf('is_sweeper'),
         flip_count: header.indexOf('flip_count'),
         confidence: header.indexOf('confidence'),
+        holder_score: header.indexOf('holder_score'),
+        holder_label: header.indexOf('holder_label'),
+        total_buys: header.indexOf('total_buys'),
+        total_usd_spent: header.indexOf('total_usd_spent'),
+        unique_collections: header.indexOf('unique_collections'),
+        avg_buy_price_usd: header.indexOf('avg_buy_price_usd'),
+        mint_ratio: header.indexOf('mint_ratio'),
+        is_new_wallet: header.indexOf('is_new_wallet'),
+        first_tx_date: header.indexOf('first_tx_date'),
+        transferred: header.indexOf('transferred'),
+        transferred_to: header.indexOf('transferred_to'),
+        transferred_at: header.indexOf('transferred_at'),
+        token_id: header.indexOf('token_id'),
+        tx_hash: header.indexOf('tx_hash'),
+        transfer_type: header.indexOf('transfer_type'),
     };
     if (idx.wallet === -1 || idx.wallet_score === -1) return []; // not our format
+    const optionalNumber = (cols: string[], index: number): number | undefined => {
+        if (index === -1 || cols[index] === undefined || cols[index] === '') return undefined;
+        const value = parseFloat(cols[index]);
+        return Number.isFinite(value) ? value : undefined;
+    };
+    const optionalString = (cols: string[], index: number): string | undefined => {
+        if (index === -1) return undefined;
+        const value = cols[index]?.trim();
+        return value ? value : undefined;
+    };
+    const optionalBool = (cols: string[], index: number): boolean | null | undefined => {
+        const value = optionalString(cols, index)?.toLowerCase();
+        if (value === undefined) return undefined;
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return null;
+    };
     const results: CollectionWalletResult[] = [];
     for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',');
@@ -74,6 +107,21 @@ function parsePartialCSV(raw: string): CollectionWalletResult[] {
             is_sweeper: cols[idx.is_sweeper]?.trim().toLowerCase() === 'true',
             flip_count: parseInt(cols[idx.flip_count] ?? '0', 10) || 0,
             confidence: parseFloat(cols[idx.confidence] ?? '0') || 0,
+            holder_score: optionalNumber(cols, idx.holder_score),
+            holder_label: optionalString(cols, idx.holder_label),
+            total_buys: optionalNumber(cols, idx.total_buys),
+            total_usd_spent: optionalNumber(cols, idx.total_usd_spent),
+            unique_collections: optionalNumber(cols, idx.unique_collections),
+            avg_buy_price_usd: optionalNumber(cols, idx.avg_buy_price_usd),
+            mint_ratio: optionalNumber(cols, idx.mint_ratio),
+            is_new_wallet: optionalBool(cols, idx.is_new_wallet) ?? undefined,
+            first_tx_date: optionalString(cols, idx.first_tx_date) ?? null,
+            transferred: optionalBool(cols, idx.transferred) ?? null,
+            transferred_to: optionalString(cols, idx.transferred_to) ?? null,
+            transferred_at: optionalString(cols, idx.transferred_at) ?? null,
+            token_id: optionalString(cols, idx.token_id) ?? null,
+            tx_hash: optionalString(cols, idx.tx_hash) ?? null,
+            transfer_type: (optionalString(cols, idx.transfer_type) ?? null) as 'sale' | 'transfer' | 'unknown' | null,
         });
     }
     return results;
@@ -89,9 +137,10 @@ function readFileText(file: File): Promise<string> {
     });
 }
 
-export default function CollectionUpload({ onStartFromFile, onStartFromAddresses, isLoading }: Props) {
+export default function CollectionUpload({ onStartFromFile, onStartFromAddresses, onRestoreSession, isLoading }: Props) {
     const [collectionName, setCollectionName] = useState('');
     const [text, setText] = useState('');
+    const [restoreSessionId, setRestoreSessionId] = useState('');
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [partialFile, setPartialFile] = useState<File | null>(null);
     const [partialError, setPartialError] = useState<string | null>(null);
@@ -185,6 +234,7 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
     }
 
     const canSubmit = !isLoading && (pendingFile !== null || valid.length > 0);
+    const canRestore = !isLoading && restoreSessionId.trim().length > 0;
 
     return (
         <motion.div
@@ -204,6 +254,58 @@ export default function CollectionUpload({ onStartFromFile, onStartFromAddresses
                 <p className="text-sm" style={{ color: 'rgba(242,242,242,0.5)', fontFamily: 'var(--font-body)' }}>
                     Score up to 4,000 wallets. Upload a CSV/TXT file or paste addresses below.
                 </p>
+            </div>
+
+            <div
+                className="rounded-xl px-4 py-3 flex flex-col gap-3"
+                style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--glass-border)',
+                }}
+            >
+                <div>
+                    <label
+                        className="block text-xs uppercase tracking-widest mb-1.5"
+                        style={{ color: 'rgba(242,242,242,0.4)', fontFamily: 'var(--font-body)' }}
+                    >
+                        Recover active scan
+                    </label>
+                    <p className="text-xs" style={{ color: 'rgba(242,242,242,0.35)', fontFamily: 'var(--font-body)' }}>
+                        Paste the session id from Render logs or a previous scan response to reconnect and export collected scores.
+                    </p>
+                </div>
+                <div className="grid md:grid-cols-[1fr_auto] gap-2">
+                    <input
+                        type="text"
+                        value={restoreSessionId}
+                        onChange={e => setRestoreSessionId(e.target.value)}
+                        placeholder="session id"
+                        disabled={isLoading}
+                        className="focus-orange w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid var(--glass-border)',
+                            color: 'var(--color-corge-offwhite)',
+                            fontFamily: 'monospace',
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => onRestoreSession(restoreSessionId)}
+                        disabled={!canRestore}
+                        className="rounded-lg px-4 py-2.5 text-xs font-semibold transition-all"
+                        style={{
+                            background: canRestore ? 'rgba(255,90,31,0.14)' : 'rgba(255,255,255,0.04)',
+                            border: canRestore ? '1px solid rgba(255,90,31,0.35)' : '1px solid var(--glass-border)',
+                            color: canRestore ? 'var(--color-corge-orange)' : 'rgba(242,242,242,0.25)',
+                            cursor: canRestore ? 'pointer' : 'not-allowed',
+                            fontFamily: 'var(--font-body)',
+                            minHeight: '42px',
+                        }}
+                    >
+                        Restore
+                    </button>
+                </div>
             </div>
 
             {/* Collection name */}

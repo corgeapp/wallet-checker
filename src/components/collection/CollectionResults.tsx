@@ -29,9 +29,9 @@ type SortDir = 'asc' | 'desc';
  * @param name - Collection name used for the filename
  */
 function exportCSV(results: CollectionWalletResult[], name: string) {
-    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio';
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,token_id,tx_hash,transfer_type';
     const rows = results.map(r =>
-        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''}`
+        `${r.wallet},${r.wallet_score},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.token_id ?? ''},${r.tx_hash ?? ''},${r.transfer_type ?? ''}`
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { submitWallet, getMinters, getHolders, cancelCollectionSessionBeacon, ApiError } from './api/client';
+import { submitWallet, getMinters, getHolders, ApiError } from './api/client';
 import type { RateLimitInfo, HoldersResponse } from './api/client';
 import { NetworkError } from './api/client';
 import { usePoller } from './hooks/usePoller';
@@ -154,7 +154,7 @@ export default function App() {
     function handleDismiss() { setState({ status: 'idle' }); setConnectivityWarning(false); }
 
     // ── Collection scanner ────────────────────────────────────────────────────
-    const { state: scanState, startScan, startScanFromFile, reset: resetScan } = useCollectionScanner();
+    const { state: scanState, startScan, startScanFromFile, reset: resetScan, restoreSession } = useCollectionScanner();
     const scanActive = scanState.phase === 'scanning';
 
     // ── Minter fetcher ────────────────────────────────────────────────────────
@@ -241,8 +241,6 @@ export default function App() {
     useEffect(() => {
         function onBeforeUnload(e: BeforeUnloadEvent) {
             if (scanActive && scanState.sessionId) {
-                // Cancel the session server-side before the page closes
-                cancelCollectionSessionBeacon(scanState.sessionId);
                 e.preventDefault();
                 e.returnValue = '';
             }
@@ -420,6 +418,7 @@ export default function App() {
                                                 <CollectionUpload
                                                     onStartFromFile={startScanFromFile}
                                                     onStartFromAddresses={startScan}
+                                                    onRestoreSession={restoreSession}
                                                     isLoading={scanState.phase === 'uploading'}
                                                 />
                                                 {scanState.phase === 'error' && scanState.error && (
@@ -435,7 +434,32 @@ export default function App() {
                                             </div>
                                         )}
                                         {(scanState.phase === 'scanning' || scanState.phase === 'stalled') && (
-                                            <CollectionProgress key="progress" state={scanState} />
+                                            <div key="progress" className="w-full flex flex-col gap-5">
+                                                <CollectionProgress state={scanState} />
+                                                {scanState.results.length > 0 && scanState.stats && (
+                                                    <CollectionResults
+                                                        results={scanState.results}
+                                                        stats={scanState.stats}
+                                                        collectionName={scanState.collectionName}
+                                                        failedAddresses={scanState.failedAddresses}
+                                                        onReset={resetScan}
+                                                        onRescan={(zeroAddresses) => {
+                                                            startScan(
+                                                                { addresses: zeroAddresses },
+                                                                `${scanState.collectionName} (rescan)`,
+                                                                scanState.results
+                                                            );
+                                                        }}
+                                                        onRetryFailed={(failedAddresses) => {
+                                                            startScan(
+                                                                { addresses: failedAddresses },
+                                                                `${scanState.collectionName} (failed retry)`,
+                                                                scanState.results
+                                                            );
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
                                         )}
                                         {scanState.phase === 'done' && scanState.stats && (
                                             <div key="done" className="w-full flex flex-col gap-5">

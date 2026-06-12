@@ -26,10 +26,41 @@ function parseCollectionCSV(raw: string): { results: CollectionWalletResult[]; e
     const iFlips = col('flip_count', 'flips', 'flip');
     const iConf = col('confidence', 'conf');
     const iNewWallet = col('is_new_wallet', 'new_wallet');
+    const iHolderScore = col('holder_score');
+    const iHolderLabel = col('holder_label');
+    const iTotalBuys = col('total_buys');
+    const iTotalUsdSpent = col('total_usd_spent');
+    const iUniqueCollections = col('unique_collections');
+    const iAvgBuyPriceUsd = col('avg_buy_price_usd');
+    const iMintRatio = col('mint_ratio');
+    const iFirstTxDate = col('first_tx_date');
+    const iTransferred = col('transferred');
+    const iTransferredTo = col('transferred_to');
+    const iTransferredAt = col('transferred_at');
+    const iTokenId = col('token_id');
+    const iTxHash = col('tx_hash');
+    const iTransferType = col('transfer_type');
     if (iWallet === -1) return { results: [], errors: ['Could not find a wallet address column.'] };
     if (iScore === -1) return { results: [], errors: ['Could not find a score column.'] };
     const results: CollectionWalletResult[] = [];
     const errors: string[] = [];
+    const optionalNumber = (cols: string[], index: number): number | undefined => {
+        if (index === -1 || cols[index] === undefined || cols[index] === '') return undefined;
+        const value = parseFloat(cols[index]);
+        return Number.isFinite(value) ? value : undefined;
+    };
+    const optionalString = (cols: string[], index: number): string | undefined => {
+        if (index === -1) return undefined;
+        const value = cols[index]?.trim();
+        return value ? value : undefined;
+    };
+    const optionalBool = (cols: string[], index: number): boolean | null | undefined => {
+        const value = optionalString(cols, index)?.toLowerCase();
+        if (value === undefined) return undefined;
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return null;
+    };
     for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
         const wallet = cols[iWallet] ?? '';
@@ -50,6 +81,20 @@ function parseCollectionCSV(raw: string): { results: CollectionWalletResult[]; e
             flip_count: flips,
             confidence: parseFloat(cols[iConf] ?? '0') || 0,
             is_new_wallet: isNewWallet,
+            holder_score: optionalNumber(cols, iHolderScore),
+            holder_label: optionalString(cols, iHolderLabel),
+            total_buys: optionalNumber(cols, iTotalBuys),
+            total_usd_spent: optionalNumber(cols, iTotalUsdSpent),
+            unique_collections: optionalNumber(cols, iUniqueCollections),
+            avg_buy_price_usd: optionalNumber(cols, iAvgBuyPriceUsd),
+            mint_ratio: optionalNumber(cols, iMintRatio),
+            first_tx_date: optionalString(cols, iFirstTxDate) ?? null,
+            transferred: optionalBool(cols, iTransferred) ?? null,
+            transferred_to: optionalString(cols, iTransferredTo) ?? null,
+            transferred_at: optionalString(cols, iTransferredAt) ?? null,
+            token_id: optionalString(cols, iTokenId) ?? null,
+            tx_hash: optionalString(cols, iTxHash) ?? null,
+            transfer_type: (optionalString(cols, iTransferType) ?? null) as 'sale' | 'transfer' | 'unknown' | null,
         });
     }
     return { results, errors: errors.slice(0, 5) };
@@ -96,14 +141,29 @@ function computeStats(results: CollectionWalletResult[]): CollectionStats {
 function mergeResults(base: CollectionWalletResult[], updates: CollectionWalletResult[]): CollectionWalletResult[] {
     const map = new Map<string, CollectionWalletResult>();
     for (const r of base) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
-    for (const r of updates) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
+    for (const r of updates) {
+        if (!r?.wallet) continue;
+        const key = r.wallet.toLowerCase();
+        const existing = map.get(key);
+        map.set(key, existing ? mergeDefined(existing, r) : r);
+    }
     return Array.from(map.values());
 }
 
+function mergeDefined(existing: CollectionWalletResult, incoming: CollectionWalletResult): CollectionWalletResult {
+    const merged = { ...existing };
+    for (const [key, value] of Object.entries(incoming) as [keyof CollectionWalletResult, CollectionWalletResult[keyof CollectionWalletResult]][]) {
+        if (value !== undefined && value !== null && value !== '') {
+            (merged as Record<string, unknown>)[key] = value;
+        }
+    }
+    return merged;
+}
+
 function exportCSV(results: CollectionWalletResult[], name: string) {
-    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,transfer_type';
+    const header = 'wallet,wallet_score,label,is_sweeper,flip_count,confidence,holder_score,holder_label,total_buys,total_usd_spent,unique_collections,avg_buy_price_usd,mint_ratio,is_new_wallet,first_tx_date,transferred,transferred_to,transferred_at,token_id,tx_hash,transfer_type';
     const rows = results.map(r =>
-        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.transfer_type ?? ''}`
+        `${r.wallet},${r.wallet_score.toFixed(2)},${r.label},${r.is_sweeper},${r.flip_count},${r.confidence},${r.holder_score ?? ''},${r.holder_label ?? ''},${r.total_buys ?? ''},${r.total_usd_spent ?? ''},${r.unique_collections ?? ''},${r.avg_buy_price_usd ?? ''},${r.mint_ratio ?? ''},${r.is_new_wallet ?? false},${r.first_tx_date ?? ''},${r.transferred ?? ''},${r.transferred_to ?? ''},${r.transferred_at ?? ''},${r.token_id ?? ''},${r.tx_hash ?? ''},${r.transfer_type ?? ''}`
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');

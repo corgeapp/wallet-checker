@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { startCollectionScan, startCollectionScanCSV, getCollectionSession, getCollectionProgress, cancelCollectionSession } from '../api/client';
+import { startCollectionScan, startCollectionScanCSV, getCollectionSession, getCollectionProgress } from '../api/client';
 import { NetworkError, ApiError } from '../api/client';
 import type { CollectionScanState, CollectionWalletResult } from '../types';
 
-const POLL_INTERVAL_MS = 5000; // Increased from 5000ms to 5000ms for lighter load
+const POLL_INTERVAL_MS = 5000;
 const STORAGE_KEY_PREFIX = 'corge_scan_';
+const ACTIVE_SESSION_KEY = 'corge_active_scan';
+const FULL_REFRESH_EVERY_POLLS = 3;
 
 function storageKey(sessionId: string) {
     return `${STORAGE_KEY_PREFIX}${sessionId}`;
@@ -18,7 +20,7 @@ function saveToStorage(sessionId: string, results: CollectionWalletResult[]) {
             results,
         }));
     } catch {
-        // storage full — ignore
+        // ignore storage failures
     }
 }
 
@@ -30,6 +32,33 @@ function loadFromStorage(sessionId: string): CollectionWalletResult[] | null {
         return parsed.results ?? null;
     } catch {
         return null;
+    }
+}
+
+function saveActiveSession(sessionId: string, collectionName: string) {
+    try {
+        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
+            sessionId,
+            collectionName,
+            savedAt: Date.now(),
+        }));
+    } catch {
+        // ignore storage failures
+    }
+}
+
+function clearActiveSession(sessionId?: string | null) {
+    try {
+        if (!sessionId) {
+            localStorage.removeItem(ACTIVE_SESSION_KEY);
+            return;
+        }
+        const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as { sessionId?: string };
+        if (parsed.sessionId === sessionId) localStorage.removeItem(ACTIVE_SESSION_KEY);
+    } catch {
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
     }
 }
 
@@ -51,6 +80,7 @@ export function useCollectionScanner() {
     const [state, setState] = useState<CollectionScanState>(INITIAL_STATE);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
+    const pollCountRef = useRef(0);
 
     function stopPolling() {
         if (intervalRef.current) {
@@ -59,63 +89,77 @@ export function useCollectionScanner() {
         }
     }
 
+    function applyFullSession(sessionId: string, phaseHint?: CollectionScanState['phase']) {
+        return async () => {
+            const fullData = await getCollectionSession(sessionId);
+            const saved = loadFromStorage(sessionId) ?? [];
+            const merged = mergeResults(saved, fullData.results);
+            if (merged.length > 0) saveToStorage(sessionId, merged);
+
+            const phase = phaseHint ?? (
+                fullData.status === 'done'
+                    ? 'done'
+                    : fullData.status === 'stalled'
+                        ? 'stalled'
+                        : fullData.status === 'cancelled'
+                            ? 'cancelled'
+                            : 'scanning'
+            );
+
+            setState(prev => ({
+                ...prev,
+                collectionName: fullData.collectionName ?? prev.collectionName,
+                progress: fullData.progress,
+                stats: fullData.stats,
+                results: merged,
+                failedAddresses: fullData.failed ?? [],
+                stalled: fullData.stalled,
+                phase,
+                error: fullData.cancelled?.reason ?? fullData.stalled?.message ?? null,
+                totalSubmitted: fullData.progress.total,
+            }));
+
+            if (fullData.status === 'done' || fullData.status === 'cancelled') {
+                clearActiveSession(sessionId);
+            }
+
+            return fullData;
+        };
+    }
+
     const poll = useCallback(async (sessionId: string) => {
         try {
-            // Use lightweight progress endpoint for polling (no results array)
             const data = await getCollectionProgress(sessionId);
+            pollCountRef.current += 1;
 
-            if (data.status === 'cancelled') {
+            if (data.status === 'done' || data.status === 'cancelled' || data.status === 'stalled') {
                 stopPolling();
-                // Fetch full session data to get final results and failed addresses
-                const fullData = await getCollectionSession(sessionId);
-                const saved = loadFromStorage(sessionId) ?? [];
-                const merged = mergeResults(saved, fullData.results);
-                saveToStorage(sessionId, merged);
-
-                setState(prev => ({
-                    ...prev,
-                    progress: fullData.progress,
-                    stats: fullData.stats,
-                    results: merged,
-                    failedAddresses: fullData.failed ?? [],
-                    phase: 'cancelled',
-                    error: fullData.cancelled?.reason ?? 'Session was cancelled',
-                }));
+                await applyFullSession(sessionId)();
                 return;
             }
 
-            // Update progress only (no results yet)
+            const shouldRefreshResults =
+                data.progress.completed > 0 &&
+                pollCountRef.current % FULL_REFRESH_EVERY_POLLS === 0;
+
+            if (shouldRefreshResults) {
+                await applyFullSession(sessionId, 'scanning')();
+                return;
+            }
+
             setState(prev => ({
                 ...prev,
+                collectionName: data.collectionName ?? prev.collectionName,
                 progress: data.progress,
                 stalled: data.stalled,
-                phase: data.status === 'stalled' ? 'stalled' : 'scanning',
+                phase: 'scanning',
             }));
-
-            // When scan completes, fetch full results
-            if (data.status === 'done') {
-                stopPolling();
-                const fullData = await getCollectionSession(sessionId);
-                const saved = loadFromStorage(sessionId) ?? [];
-                const merged = mergeResults(saved, fullData.results);
-                saveToStorage(sessionId, merged);
-
-                setState(prev => ({
-                    ...prev,
-                    progress: fullData.progress,
-                    stats: fullData.stats,
-                    results: merged,
-                    failedAddresses: fullData.failed ?? [],
-                    phase: 'done',
-                }));
-            } else if (data.status === 'stalled') {
-                stopPolling();
-            }
         } catch (err) {
             if (err instanceof NetworkError) {
-                // transient — keep polling
-            } else if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
-                // Session expired or was cancelled server-side — preserve partial results
+                return;
+            }
+
+            if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
                 stopPolling();
                 const saved = loadFromStorage(sessionId) ?? [];
                 setState(prev => ({
@@ -124,14 +168,16 @@ export function useCollectionScanner() {
                     phase: 'interrupted',
                     error: 'Session expired on the server. Showing partial results collected so far.',
                 }));
-            } else {
-                stopPolling();
-                setState(prev => ({
-                    ...prev,
-                    phase: 'error',
-                    error: err instanceof Error ? err.message : 'Polling failed',
-                }));
+                clearActiveSession(sessionId);
+                return;
             }
+
+            stopPolling();
+            setState(prev => ({
+                ...prev,
+                phase: 'error',
+                error: err instanceof Error ? err.message : 'Polling failed',
+            }));
         }
     }, []);
 
@@ -140,7 +186,9 @@ export function useCollectionScanner() {
         try {
             const res = await startCollectionScanCSV(file, collectionName || undefined);
             sessionIdRef.current = res.sessionId;
-            // Seed localStorage with partial results so they survive interruption
+            pollCountRef.current = 0;
+            saveActiveSession(res.sessionId, collectionName || 'Collection scan');
+
             const saved = loadFromStorage(res.sessionId);
             const seeded = mergeResults(partialResults ?? [], saved ?? []);
             if (seeded.length > 0) saveToStorage(res.sessionId, seeded);
@@ -166,7 +214,6 @@ export function useCollectionScanner() {
     async function startScan(body: Record<string, unknown>, collectionName: string, partialResults?: CollectionWalletResult[]) {
         setState({ ...INITIAL_STATE, phase: 'uploading', collectionName });
         try {
-            // For paste/JSON mode, subtract already-scored addresses before sending
             const alreadyScored = new Set((partialResults ?? []).map(r => r.wallet.toLowerCase()));
             let payload = body;
             if (alreadyScored.size > 0 && Array.isArray(body.addresses)) {
@@ -176,6 +223,9 @@ export function useCollectionScanner() {
 
             const res = await startCollectionScan(payload, collectionName || undefined);
             sessionIdRef.current = res.sessionId;
+            pollCountRef.current = 0;
+            saveActiveSession(res.sessionId, collectionName || 'Collection scan');
+
             const saved = loadFromStorage(res.sessionId);
             const seeded = mergeResults(partialResults ?? [], saved ?? []);
             if (seeded.length > 0) saveToStorage(res.sessionId, seeded);
@@ -200,42 +250,82 @@ export function useCollectionScanner() {
 
     function reset() {
         stopPolling();
-        // Cancel the session on the server if one is active
-        if (sessionIdRef.current) {
-            void cancelCollectionSession(sessionIdRef.current);
-            sessionIdRef.current = null;
-        }
+        clearActiveSession(sessionIdRef.current);
+        sessionIdRef.current = null;
         setState(INITIAL_STATE);
     }
 
-    // Restore from localStorage if sessionId is known
-    function restoreSession(sessionId: string) {
-        const saved = loadFromStorage(sessionId);
-        if (saved) {
-            setState(prev => ({ ...prev, results: saved, sessionId }));
+    async function restoreSession(sessionId: string) {
+        const trimmed = sessionId.trim();
+        if (!trimmed) return;
+
+        stopPolling();
+        setState({ ...INITIAL_STATE, phase: 'uploading', sessionId: trimmed });
+
+        try {
+            sessionIdRef.current = trimmed;
+            pollCountRef.current = 0;
+            const fullData = await applyFullSession(trimmed)();
+            saveActiveSession(trimmed, fullData.collectionName ?? 'Restored scan');
+
+            if (fullData.status === 'running') {
+                await poll(trimmed);
+                intervalRef.current = setInterval(() => poll(trimmed), POLL_INTERVAL_MS);
+            }
+        } catch (err) {
+            const saved = loadFromStorage(trimmed);
+            setState(prev => ({
+                ...prev,
+                sessionId: trimmed,
+                results: saved ?? [],
+                phase: saved?.length ? 'interrupted' : 'error',
+                error: err instanceof Error ? err.message : 'Could not restore scan session',
+            }));
         }
     }
 
-    // Cleanup on unmount — cancel active session so the server doesn't waste resources
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as { sessionId?: string };
+            if (parsed.sessionId) void restoreSession(parsed.sessionId);
+        } catch {
+            clearActiveSession();
+        }
+        // Run only once on mount to reconnect after refresh/crash.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useEffect(() => {
         return () => {
             stopPolling();
-            if (sessionIdRef.current) {
-                void cancelCollectionSession(sessionIdRef.current);
-            }
         };
     }, []);
 
     return { state, startScan, startScanFromFile, reset, restoreSession };
 }
 
-// Merge results arrays, deduplicating by wallet address, preferring newer entries
 function mergeResults(
     existing: CollectionWalletResult[],
     incoming: CollectionWalletResult[]
 ): CollectionWalletResult[] {
     const map = new Map<string, CollectionWalletResult>();
     for (const r of existing) map.set(r.wallet.toLowerCase(), r);
-    for (const r of incoming) map.set(r.wallet.toLowerCase(), r);
+    for (const r of incoming) {
+        const key = r.wallet.toLowerCase();
+        const current = map.get(key);
+        map.set(key, current ? mergeDefined(current, r) : r);
+    }
     return Array.from(map.values());
+}
+
+function mergeDefined(existing: CollectionWalletResult, incoming: CollectionWalletResult): CollectionWalletResult {
+    const merged = { ...existing };
+    for (const [key, value] of Object.entries(incoming)) {
+        if (value !== undefined && value !== null && value !== '') {
+            (merged as Record<string, unknown>)[key] = value;
+        }
+    }
+    return merged;
 }

@@ -43,7 +43,12 @@ export function useRescan() {
             setState(prev => {
                 const map = new Map<string, CollectionWalletResult>();
                 for (const r of prev.newResults) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
-                for (const r of data.results) if (r?.wallet) map.set(r.wallet.toLowerCase(), r);
+                for (const r of data.results) {
+                    if (!r?.wallet) continue;
+                    const key = r.wallet.toLowerCase();
+                    const current = map.get(key);
+                    map.set(key, current ? mergeDefined(current, r) : r);
+                }
                 return {
                     ...prev,
                     completed: data.progress.completed,
@@ -101,4 +106,14 @@ export function useRescan() {
     }
 
     return { state, startRescan, reset };
+}
+
+function mergeDefined(existing: CollectionWalletResult, incoming: CollectionWalletResult): CollectionWalletResult {
+    const merged = { ...existing };
+    for (const [key, value] of Object.entries(incoming)) {
+        if (value !== undefined && value !== null && value !== '') {
+            (merged as Record<string, unknown>)[key] = value;
+        }
+    }
+    return merged;
 }

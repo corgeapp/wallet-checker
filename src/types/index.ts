@@ -182,18 +182,19 @@ export interface CollectionSessionResponse {
     status: CollectionStatus;
     progress: CollectionProgress;
     stalled: CollectionStalled | null;
-    cancelled?: { reason: string };
-    stats: CollectionStats;
+    cancelled?: { reason?: string; message?: string };
+    stats: CollectionStats | null;
     results: CollectionWalletResult[];
     failed?: Array<{ wallet: string; error: string }>;
 }
 
 export interface CollectionProgressResponse {
     sessionId: string;
+    collectionName?: string;
     status: CollectionStatus;
     progress: CollectionProgress;
     stalled: CollectionStalled | null;
-    cancelled?: { reason: string };
+    cancelled?: { reason?: string; message?: string };
 }
 
 export interface CollectionScanResponse {
